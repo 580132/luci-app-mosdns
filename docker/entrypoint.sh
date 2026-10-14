@@ -103,14 +103,14 @@ if [ -f "$V2DAT_DIR/geoip.dat" ] && [ -f "$V2DAT_DIR/geosite.dat" ]; then
         tags="$(printf '%s' "$GEOIP_TAGS" | tr ',' ' ')"
         # shellcheck disable=SC2086
         geo2txt geoip -f "$V2DAT_DIR/geoip.dat" $(
-            for t in $tags; do printf -- '-e %s ' "$t"; done
+            for t in $tags; do printf '%s' "-e $t "; done
         ) -o "$TXT_DIR"
     fi
     if [ -n "$GEOSITE_TAGS" ]; then
         tags="$(printf '%s' "$GEOSITE_TAGS" | tr ',' ' ')"
         # shellcheck disable=SC2086
         geo2txt geosite -f "$V2DAT_DIR/geosite.dat" $(
-            for t in $tags; do printf -- '-e %s ' "$t"; done
+            for t in $tags; do printf '%s' "-e $t "; done
         ) -o "$TXT_DIR"
     fi
 else
@@ -131,7 +131,10 @@ done
 # mount, and renaming over a mount point fails with "Resource busy".
 # Work on a temp copy and point mosdns at it instead.
 if [ "$APPLY_ENV_CONFIG" = "1" ] && [ -f "$CONFIG" ]; then
-    TMP_CONFIG="$(mktemp /tmp/mosdns-config.XXXXXX.yaml)"
+    # busybox mktemp requires TEMPLATE to end with XXXXXX, and mosdns/viper
+    # picks the config parser by file extension, so use a temp dir + fixed name.
+    TMP_DIR="$(mktemp -d /tmp/mosdns.XXXXXX)"
+    TMP_CONFIG="$TMP_DIR/config.yaml"
     cp -f "$CONFIG" "$TMP_CONFIG"
     sed -i "s#\(listen:[[:space:]]*\"\)[^\"]*\(\"\)#\1${LISTEN_ADDR}:${LISTEN_PORT}\2#g" "$TMP_CONFIG"
     sed -i "s#\(http:[[:space:]]*\"\)[^\"]*\(\"\)#\1${API_LISTEN}\2#" "$TMP_CONFIG"
