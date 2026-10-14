@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mosdns statistics</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 16px; max-width: 1200px; margin-inline: auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 24px 0 8px; border-bottom: 1px solid #8884; padding-bottom: 4px; }
+  .muted { opacity: .65; font-size: .85rem; }
+  #err { display: none; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 6px; padding: 8px 12px; margin: 12px 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+  .card { border: 1px solid #8884; border-radius: 8px; padding: 10px 12px; }
+  .card .v { font-size: 1.5rem; font-weight: 650; }
+  .card .k { font-size: .8rem; opacity: .7; }
+  .card .s { font-size: .75rem; opacity: .6; }
+  .live { color: #1a7f37; font-weight: 600; }
+  #history { display: flex; align-items: flex-end; gap: 2px; height: 90px; margin-top: 8px; }
+  #history .bar { flex: 1; min-width: 3px; background: #0969da; border-radius: 2px 2px 0 0; opacity: .8; }
+  #history .bar.blocked { background: #cf222e; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #8883; }
+  th { opacity: .7; font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; }
+  .pill.ok { background: #dafbe1; color: #1a7f37; }
+  .pill.block { background: #ffebe9; color: #cf222e; }
+  .pill.cache { background: #ddf4ff; color: #0969da; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  input, select, button { font: inherit; padding: 5px 10px; border: 1px solid #8886; border-radius: 6px; background: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:hover { filter: brightness(.94); }
+  button.danger { border-color: #cf222e; color: #cf222e; }
+  .pager { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .domain { word-break: break-all; }
+  footer { margin-top: 28px; }
+</style>
+</head>
+<body>
+<h1>mosdns statistics</h1>
+<div class="muted">Standalone replacement for the LuCI statistics page. Data comes straight from the patched <code>stats_api</code> plugin.</div>
+<div id="err"></div>
+
+<div class="toolbar">
+  <label class="muted" for="apiBase">API base</label>
+  <input id="apiBase" size="52" spellcheck="false">
+  <button id="saveApi" type="button">Save</button>
+  <span class="muted" id="updated"></span>
+</div>
+
+<h2>Overview</h2>
+<div class="cards">
+  <div class="card"><div class="v" id="mTotal">–</div><div class="k">Total queries</div><div class="s" id="mQps"><span class="live">● Live</span> – QPS</div></div>
+  <div class="card"><div class="v" id="mBlocked">–</div><div class="k">Blocked</div><div class="s" id="mBlockedPct">–</div></div>
+  <div class="card"><div class="v" id="mCached">–</div><div class="k">Cache hits</div><div class="s" id="mCachedPct">–</div></div>
+  <div class="card"><div class="v" id="mLatency">–</div><div class="k">Avg latency</div><div class="s">ms</div></div>
+</div>
+
+<h2>History (hourly)</h2>
+<div id="history"></div>
+<div class="muted" id="historyLegend"></div>
+
+<div class="cols">
+  <div><h2>Top domains</h2><table><thead><tr><th>Domain</th><th class="num">Count</th></tr></thead><tbody id="topDomains"></tbody></table></div>
+  <div><h2>Top blocked</h2><table><thead><tr><th>Domain</th><th class="num">Count</th></tr></thead><tbody id="topBlocked"></tbody></table></div>
+  <div><h2>Top clients</h2><table><thead><tr><th>Client IP</th><th class="num">Count</th></tr></thead><tbody id="topClients"></tbody></table></div>
+</div>
+
+<h2>Query logs</h2>
+<div class="toolbar">
+  <input id="q" placeholder="search domain / client ip" size="28">
+  <select id="f"><option value="all">All</option><option value="blocked">Blocked only</option><option value="cached">Cached only</option></select>
+  <button id="apply" type="button">Apply</button>
+  <label class="muted"><input type="checkbox" id="auto" checked> auto-refresh</label>
+  <button id="clear" type="button" class="danger">Clear logs</button>
+</div>
+<table>
+  <thead><tr><th>Time</th><th>Client</th><th>Domain</th><th>Type</th><th>Status</th><th class="num">ms</th><th>Upstream / rule</th></tr></thead>
+  <tbody id="logs"></tbody>
+</table>
+<div class="pager">
+  <button id="prev" type="button">‹ Prev</button>
+  <span class="muted" id="pageInfo"></span>
+  <button id="next" type="button">Next ›</button>
+</div>
+
+<footer class="muted">Endpoints: <code>GET /api/v1/stats|top|history|logs</code>, <code>POST /api/v1/logs/clear</code> under the API base. Equivalent: <code>curl http://HOST:9091/plugins/stats_collector/api/v1/stats</code></footer>
+
+<script>
+'use strict';
+const PAGE_SIZE = 20; // same as LuCI statistics.js
+const $ = (id) => document.getElementById(id);
+const errBox = $('err');
+
+const defaultBase = () => 'http://' + location.hostname + ':9091/plugins/stats_collector';
+let apiBase = localStorage.getItem('mosdns_api_base') || defaultBase();
+$('apiBase').value = apiBase;
+
+let page = 0, logTotal = 0;
+
+function showErr(msg) {
+  if (!msg) { errBox.style.display = 'none'; errBox.textContent = ''; return; }
+  errBox.style.display = 'block';
+  errBox.textContent = 'API unreachable: ' + msg + ' — check that mosdns runs with the stats_api plugin and the API port is reachable.';
+}
+
+async function get(path, opts) {
+  const r = await fetch(apiBase + path, opts);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function statusPill(e) {
+  if (e.is_blocked) return '<span class="pill block">blocked</span>';
+  if (e.is_cached) return '<span class="pill cache">cached</span>';
+  return '<span class="pill ok">' + esc(e.status) + '</span>';
+}
+
+async function refreshStats() {
+  const s = await get('/api/v1/stats');
+  $('mTotal').textContent = (s.total_queries || 0).toLocaleString();
+  $('mBlocked').textContent = (s.blocked_queries || 0).toLocaleString();
+  $('mBlockedPct').textContent = (s.blocked_percentage || 0) + '% blocked';
+  $('mCached').textContent = (s.cached_queries || 0).toLocaleString();
+  $('mCachedPct').textContent = (s.cached_percentage || 0) + '% hit rate';
+  $('mLatency').textContent = (s.avg_latency_ms || 0) + ' ms';
+  $('mQps').innerHTML = '<span class="live">● Live</span> ' + (s.qps || 0) + ' QPS';
+}
+
+async function refreshTop() {
+  const t = await get('/api/v1/top?limit=10');
+  const rows = (arr, key) => (arr || []).map((it) =>
+    '<tr><td class="domain">' + esc(it[key]) + '</td><td class="num">' + it.count.toLocaleString() + '</td></tr>').join('')
+    || '<tr><td colspan="2" class="muted">no data yet</td></tr>';
+  $('topDomains').innerHTML = rows(t.top_domains, 'domain');
+  $('topBlocked').innerHTML = rows(t.top_blocked, 'domain');
+  $('topClients').innerHTML = rows(t.top_clients, 'client_ip');
+}
+
+async function refreshHistory() {
+  const h = await get('/api/v1/history?points=24');
+  const pts = h.points || [];
+  const max = Math.max(1, ...pts.map((p) => p.total));
+  $('history').innerHTML = pts.map((p) => {
+    const ht = Math.max(2, Math.round((p.total / max) * 88));
+    const title = esc(p.time) + ' total=' + p.total + ' blocked=' + p.blocked + ' cached=' + p.cached;
+    const cls = p.blocked > 0 ? 'bar blocked' : 'bar';
+    return '<div class="' + cls + '" style="height:' + ht + 'px" title="' + title + '"></div>';
+  }).join('');
+  $('historyLegend').textContent = pts.length ? ('oldest ' + pts[0].time + ' → newest ' + pts[pts.length - 1].time) : 'no data yet';
+}
+
+async function refreshLogs() {
+  const search = $('q').value.trim(), filter = $('f').value;
+  const d = await get('/api/v1/logs?limit=' + PAGE_SIZE + '&offset=' + (page * PAGE_SIZE)
+    + '&search=' + encodeURIComponent(search) + '&filter=' + encodeURIComponent(filter));
+  logTotal = d.total || 0;
+  $('logs').innerHTML = (d.items || []).map((e) =>
+    '<tr><td>' + esc(e.timestamp) + '</td><td>' + esc(e.client_ip) + '</td>' +
+    '<td class="domain">' + esc(e.domain) + '</td><td>' + esc(e.qtype) + '</td>' +
+    '<td>' + statusPill(e) + '</td><td class="num">' + (e.elapsed_ms || 0) + '</td>' +
+    '<td class="muted">' + esc(e.upstream || e.rule || '') + '</td></tr>').join('')
+    || '<tr><td colspan="7" class="muted">no matching logs</td></tr>';
+  const pages = Math.max(1, Math.ceil(logTotal / PAGE_SIZE));
+  $('pageInfo').textContent = 'page ' + (page + 1) + ' / ' + pages + ' · ' + logTotal + ' entries';
+  $('prev').disabled = page <= 0;
+  $('next').disabled = page >= pages - 1;
+}
+
+async function refreshAll() {
+  try {
+    await Promise.all([refreshStats(), refreshTop(), refreshHistory(), refreshLogs()]);
+    $('updated').textContent = 'updated ' + new Date().toLocaleTimeString();
+    showErr(null);
+  } catch (e) { showErr(e.message); }
+}
+
+$('saveApi').onclick = () => { apiBase = $('apiBase').value.trim().replace(/\/+$/, ''); localStorage.setItem('mosdns_api_base', apiBase); page = 0; refreshAll(); };
+$('apply').onclick = () => { page = 0; refreshLogs().catch((e) => showErr(e.message)); };
+$('q').onkeydown = (ev) => { if (ev.key === 'Enter') $('apply').click(); };
+$('f').onchange = () => { page = 0; refreshLogs().catch((e) => showErr(e.message)); };
+$('prev').onclick = () => { if (page > 0) { page--; refreshLogs().catch((e) => showErr(e.message)); } };
+$('next').onclick = () => { page++; refreshLogs().catch((e) => showErr(e.message)); };
+$('clear').onclick = async () => {
+  if (!confirm('Clear query logs and top statistics?')) return;
+  await get('/api/v1/logs/clear', { method: 'POST' });
+  page = 0; refreshAll();
+};
+
+refreshAll();
+setInterval(() => { if ($('auto').checked) refreshAll(); }, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+# mosdns default config for Docker.
+# Ported from luci-app-mosdns (init.d generated config + config_custom.yaml)
+# with all OpenWrt-isms removed:
+#   - no uci / procd / jshn templating, this file is used as-is
+#   - generated geo files live in /var/lib/mosdns (created by entrypoint.sh)
+#   - static rules live in /etc/mosdns/rule/
+#
+# Patched-in features used here (see mosdns/patches/):
+#   log.size / log.backups                     (209, defaults 5M/0 per 215)
+#   type: adblock_set                           (207, 208, 210)
+#   cache.prefetch*                             (213, 214)
+#   type: stats_api + dump_file/dump_interval   (216, 219)
+#
+# Upstreams below are the China-friendly defaults from the OpenWrt package.
+# Adjust forward_local / forward_remote (or mount your own config.yaml) to fit
+# your network.
+
+log:
+  level: info
+  file: ""        # empty -> stderr (docker logs). Set a path to log to file.
+  size: "5M"
+  backups: 0
+
+api:
+  http: "0.0.0.0:9091"
+
+include: []
+
+plugins:
+  # Statistics collector (patched stats_api plugin)
+  - tag: stats_collector
+    type: stats_api
+    args:
+      capacity: 2000
+      dump_file: "/etc/mosdns/stats.dump"
+      dump_interval: 600
+
+  # Mainland China domains
+  - tag: geosite_cn
+    type: domain_set
+    args:
+      files:
+        - "/var/lib/mosdns/geosite_cn.txt"
+
+  # Mainland China IPs
+  - tag: geoip_cn
+    type: ip_set
+    args:
+      files:
+        - "/var/lib/mosdns/geoip_cn.txt"
+
+  # Non-mainland domains
+  - tag: geosite_no_cn
+    type: domain_set
+    args:
+      files:
+        - "/var/lib/mosdns/geosite_geolocation-!cn.txt"
+
+  # Whitelist (always goes to local upstream)
+  - tag: whitelist
+    type: domain_set
+    args:
+      files:
+        - "/etc/mosdns/rule/whitelist.txt"
+
+  # Blocklist (patched adblock_set: supports ||domain^, |exact|, /regexp/,
+  # *keyword*, @@whitelist, hosts format and mosdns domain:/full: rules)
+  - tag: blocklist
+    type: adblock_set
+    args:
+      files:
+        - "/etc/mosdns/rule/blocklist.txt"
+
+  # Static hosts
+  - tag: hosts
+    type: hosts
+    args:
+      files:
+        - "/etc/mosdns/rule/hosts.txt"
+
+  # DNS redirect rules
+  - tag: redirect
+    type: redirect
+    args:
+      files:
+        - "/etc/mosdns/rule/redirect.txt"
+
+  # Cache with proactive prefetch (patched cache plugin)
+  - tag: lazy_cache
+    type: cache
+    args:
+      size: 8000
+      lazy_cache_ttl: 86400
+      dump_file: "/etc/mosdns/cache.dump"
+      dump_interval: 3600
+      prefetch: true
+      prefetch_before_expire: 10
+      prefetch_min_hits: 3
+      prefetch_scan_interval: 5
+
+  # Forward to local servers
+  - tag: forward_local
+    type: forward
+    args:
+      concurrent: 2
+      upstreams:
+        - addr: "https://doh.pub/dns-query"
+          bootstrap: 119.29.29.29
+        - addr: 119.29.29.29
+
+  # Forward to remote servers
+  - tag: forward_remote
+    type: forward
+    args:
+      concurrent: 2
+      upstreams:
+        - addr: tls://8.8.8.8
+          enable_pipeline: false
+
+  # Local resolution path
+  - tag: local_sequence
+    type: sequence
+    args:
+      - exec: $forward_local
+
+  # Remote resolution path
+  - tag: remote_sequence
+    type: sequence
+    args:
+      - exec: prefer_ipv4
+      - exec: $forward_remote
+
+  # Return early when a response already exists
+  - tag: has_resp_sequence
+    type: sequence
+    args:
+      - matches: has_resp
+        exec: accept
+
+  # Fallback: answer locally, drop non-CN IPs so fallback can retry remotely
+  - tag: query_is_local_ip
+    type: sequence
+    args:
+      - exec: $local_sequence
+      - matches: "!resp_ip $geoip_cn"
+        exec: drop_resp
+
+  - tag: query_is_remote
+    type: sequence
+    args:
+      - exec: $remote_sequence
+
+  - tag: fallback
+    type: fallback
+    args:
+      primary: query_is_local_ip
+      secondary: query_is_remote
+      threshold: 500
+      always_standby: true
+
+  - tag: query_is_local_domain
+    type: sequence
+    args:
+      - matches: qname $geosite_cn
+        exec: $local_sequence
+
+  - tag: query_is_no_local_domain
+    type: sequence
+    args:
+      - matches: qname $geosite_no_cn
+        exec: $remote_sequence
+
+  # Rejected / blocked queries (black_hole answers 0.0.0.0 instead of REFUSED)
+  - tag: query_is_reject_domain
+    type: sequence
+    args:
+      - matches: qname $blocklist
+        exec: black_hole 0.0.0.0 ::
+
+  # Main logic: sequence tags must be defined before use
+  - tag: main_sequence
+    type: sequence
+    args:
+      - exec: $stats_collector
+      - exec: $hosts
+      - exec: jump has_resp_sequence
+      - matches:
+          - "!qname $blocklist"
+        exec: $lazy_cache
+      - exec: jump has_resp_sequence
+      - exec: $redirect
+      - exec: jump has_resp_sequence
+      - exec: $query_is_reject_domain
+      - exec: jump has_resp_sequence
+      - matches: qname $whitelist
+        exec: $local_sequence
+      - exec: jump has_resp_sequence
+      - exec: $query_is_local_domain
+      - exec: jump has_resp_sequence
+      - exec: $query_is_no_local_domain
+      - exec: jump has_resp_sequence
+      - exec: $fallback
+
+  - tag: udp_server
+    type: udp_server
+    args:
+      entry: main_sequence
+      listen: "0.0.0.0:53"
+
+  - tag: tcp_server
+    type: tcp_server
+    args:
+      entry: main_sequence
+      listen: "0.0.0.0:53"
