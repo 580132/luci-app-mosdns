@@ -71,6 +71,14 @@ plugins:
       files:
         - "/etc/mosdns/rule/blocklist.txt"
 
+  # Downloaded ad rules, aggregated by update-adlists into a single file.
+  # Same format support as blocklist. Empty when ADBLOCK=0.
+  - tag: adlist
+    type: adblock_set
+    args:
+      files:
+        - "/var/lib/mosdns/adlist.txt"
+
   # Static hosts
   - tag: hosts
     type: hosts
@@ -176,6 +184,8 @@ plugins:
     args:
       - matches: qname $blocklist
         exec: black_hole 0.0.0.0 ::
+      - matches: qname $adlist
+        exec: black_hole 0.0.0.0 ::
 
   # Main logic: sequence tags must be defined before use
   - tag: main_sequence
@@ -186,6 +196,7 @@ plugins:
       - exec: jump has_resp_sequence
       - matches:
           - "!qname $blocklist"
+          - "!qname $adlist"
         exec: $lazy_cache
       - exec: jump has_resp_sequence
       - exec: $redirect

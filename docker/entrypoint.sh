@@ -126,6 +126,18 @@ for need in "$TXT_DIR/geosite_cn.txt" "$TXT_DIR/geoip_cn.txt" "$TXT_DIR/geosite_
     fi
 done
 
+# ---- ad rule aggregation (port of mosdns.uc update_adlist) ----
+# Best-effort: an offline start keeps serving the previous aggregate.
+# Refresh any time without restart: docker exec <container> update-adlists
+# (mosdns picks up file changes automatically via its file watcher).
+if [ -x /usr/local/bin/update-adlists ]; then
+    /usr/local/bin/update-adlists || log "WARNING: adlist update failed, continuing."
+fi
+# The adlist plugin requires its file to exist; guarantee a valid placeholder.
+if [ ! -f "$TXT_DIR/adlist.txt" ]; then
+    printf '# MosDNS adlist (placeholder)\n' > "$TXT_DIR/adlist.txt"
+fi
+
 # ---- env overrides for the stock config (skip with APPLY_ENV_CONFIG=0) ----
 # NOTE: never sed -i the config in place: it is commonly a (read-only) bind
 # mount, and renaming over a mount point fails with "Resource busy".

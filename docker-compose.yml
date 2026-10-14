@@ -19,6 +19,11 @@ services:
       GEOIP_TYPE: "geoip-only-cn-private"
       # GITHUB_PROXY: "https://gh-proxy.com/"
       # GEOSITE_TAGS: "apple,netflix"
+      # --- ad blocking (port of LuCI adblock/ad_source) ---
+      # ADBLOCK: "1"
+      # AD_SOURCES: "geosite.dat https://anti-ad.net/easylist.txt file:///etc/mosdns/rule/my-ads.txt"
+      # AD_UPDATE_INTERVAL: "604800"  # seconds; 0 = download only when missing
+      # Refresh without restart: docker exec mosdns update-adlists
     volumes:
       # Persist config/rules/geo across recreates; comment out to use image defaults.
       - ./docker/config.yaml:/etc/mosdns/config.yaml:ro
