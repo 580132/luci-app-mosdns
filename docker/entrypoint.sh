@@ -174,10 +174,19 @@ fi
 log "Starting: mosdns $* (config: $CONFIG)"
 
 # Standalone stats dashboard (replaces the LuCI statistics view).
-# busybox httpd is part of the alpine base image; empty STATS_UI_PORT disables it.
+# A failing dashboard must never kill DNS, so every launcher is guarded.
+# Empty STATS_UI_PORT disables it.
 if [ -n "${STATS_UI_PORT:-}" ] && [ -d /usr/share/mosdns-stats ]; then
     log "Serving stats dashboard on :${STATS_UI_PORT}"
-    busybox httpd -p "$STATS_UI_PORT" -h /usr/share/mosdns-stats
+    if command -v darkhttpd >/dev/null 2>&1; then
+        darkhttpd /usr/share/mosdns-stats --port "$STATS_UI_PORT" --daemon \
+            || log "WARNING: failed to start stats dashboard (darkhttpd)"
+    elif busybox --list 2>/dev/null | grep -qx httpd; then
+        busybox httpd -p "$STATS_UI_PORT" -h /usr/share/mosdns-stats \
+            || log "WARNING: failed to start stats dashboard (busybox httpd)"
+    else
+        log "WARNING: no static file server found, stats dashboard disabled"
+    fi
 fi
 
 exec /usr/bin/mosdns "$@"

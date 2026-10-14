@@ -72,7 +72,7 @@ LABEL org.opencontainers.image.title="mosdns (sbwml patched, no LuCI)"
 LABEL org.opencontainers.image.source="https://github.com/sbwml/luci-app-mosdns"
 LABEL org.opencontainers.image.description="Patched mosdns DNS forwarder without OpenWrt/LuCI dependencies"
 
-RUN apk add --no-cache ca-certificates curl tzdata \
+RUN apk add --no-cache ca-certificates curl tzdata darkhttpd \
     && rm -rf /var/cache/apk/*
 
 COPY --from=mosdns-builder /out/mosdns /usr/bin/mosdns
