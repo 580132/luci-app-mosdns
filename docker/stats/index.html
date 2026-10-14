@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>mosdns statistics</title>
+<title>mosdns 统计</title>
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 16px; max-width: 1200px; margin-inline: auto; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; padding: 16px; max-width: 1200px; margin-inline: auto; }
   h1 { font-size: 1.4rem; margin: 0 0 4px; }
   h2 { font-size: 1.05rem; margin: 24px 0 8px; border-bottom: 1px solid #8884; padding-bottom: 4px; }
   .muted { opacity: .65; font-size: .85rem; }
@@ -26,6 +26,8 @@
   th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #8883; }
   th { opacity: .7; font-weight: 600; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  #logs tbody tr { cursor: pointer; }
+  #logs tbody tr:hover { background: #8882; }
   .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; }
   .pill.ok { background: #dafbe1; color: #1a7f37; }
   .pill.block { background: #ffebe9; color: #cf222e; }
@@ -37,62 +39,97 @@
   button.danger { border-color: #cf222e; color: #cf222e; }
   .pager { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
   .domain { word-break: break-all; }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: .85em; }
+  /* detail modal */
+  #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; align-items: flex-start; justify-content: center; padding: 8vh 12px 12px; }
+  #overlay.open { display: flex; }
+  #dialog { background: Canvas; color: CanvasText; border: 1px solid #8885; border-radius: 10px; max-width: 640px; width: 100%; max-height: 84vh; overflow-y: auto; padding: 16px 18px; }
+  #dialog h3 { margin: 0 0 10px; font-size: 1.1rem; }
+  .d-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .d-title { font-size: 1.05rem; font-weight: 650; word-break: break-all; }
+  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .meta .item { border: 1px solid #8883; border-radius: 6px; padding: 6px 10px; }
+  .meta .k { font-size: .75rem; opacity: .65; }
+  .meta .v { word-break: break-all; }
+  .ans { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #8882; }
+  .ans:last-child { border-bottom: none; }
+  .ans .data { flex: 1; word-break: break-all; }
+  .qtype { display: inline-block; padding: 0 7px; border-radius: 5px; background: #8883; font-size: .75rem; }
+  .d-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
   footer { margin-top: 28px; }
 </style>
 </head>
 <body>
-<h1>mosdns statistics</h1>
-<div class="muted">Standalone replacement for the LuCI statistics page. Data comes straight from the patched <code>stats_api</code> plugin.</div>
+<h1>mosdns 统计</h1>
+<div class="muted">LuCI 统计页面的独立替代版，数据直接来自补丁版 <code>stats_api</code> 插件。点击日志行可查看详情。</div>
 <div id="err"></div>
 
 <div class="toolbar">
-  <label class="muted" for="apiBase">API base</label>
+  <label class="muted" for="apiBase">API 地址</label>
   <input id="apiBase" size="52" spellcheck="false">
-  <button id="saveApi" type="button">Save</button>
+  <button id="saveApi" type="button">保存</button>
   <span class="muted" id="updated"></span>
 </div>
 
-<h2>Overview</h2>
+<h2>总览</h2>
 <div class="cards">
-  <div class="card"><div class="v" id="mTotal">–</div><div class="k">Total queries</div><div class="s" id="mQps"><span class="live">● Live</span> – QPS</div></div>
-  <div class="card"><div class="v" id="mBlocked">–</div><div class="k">Blocked</div><div class="s" id="mBlockedPct">–</div></div>
-  <div class="card"><div class="v" id="mCached">–</div><div class="k">Cache hits</div><div class="s" id="mCachedPct">–</div></div>
-  <div class="card"><div class="v" id="mLatency">–</div><div class="k">Avg latency</div><div class="s">ms</div></div>
+  <div class="card"><div class="v" id="mTotal">–</div><div class="k">总查询</div><div class="s" id="mQps"><span class="live">● 实时</span> – QPS</div></div>
+  <div class="card"><div class="v" id="mBlocked">–</div><div class="k">已拦截</div><div class="s" id="mBlockedPct">–</div></div>
+  <div class="card"><div class="v" id="mCached">–</div><div class="k">缓存命中</div><div class="s" id="mCachedPct">–</div></div>
+  <div class="card"><div class="v" id="mLatency">–</div><div class="k">平均延迟</div><div class="s">毫秒</div></div>
 </div>
 
-<h2>History (hourly)</h2>
+<h2>按小时统计</h2>
 <div id="history"></div>
 <div class="muted" id="historyLegend"></div>
 
 <div class="cols">
-  <div><h2>Top domains</h2><table><thead><tr><th>Domain</th><th class="num">Count</th></tr></thead><tbody id="topDomains"></tbody></table></div>
-  <div><h2>Top blocked</h2><table><thead><tr><th>Domain</th><th class="num">Count</th></tr></thead><tbody id="topBlocked"></tbody></table></div>
-  <div><h2>Top clients</h2><table><thead><tr><th>Client IP</th><th class="num">Count</th></tr></thead><tbody id="topClients"></tbody></table></div>
+  <div><h2>热门域名</h2><table><thead><tr><th>域名</th><th class="num">次数</th></tr></thead><tbody id="topDomains"></tbody></table></div>
+  <div><h2>拦截排行</h2><table><thead><tr><th>域名</th><th class="num">次数</th></tr></thead><tbody id="topBlocked"></tbody></table></div>
+  <div><h2>活跃客户端</h2><table><thead><tr><th>客户端 IP</th><th class="num">次数</th></tr></thead><tbody id="topClients"></tbody></table></div>
 </div>
 
-<h2>Query logs</h2>
+<h2>查询日志</h2>
 <div class="toolbar">
-  <input id="q" placeholder="search domain / client ip" size="28">
-  <select id="f"><option value="all">All</option><option value="blocked">Blocked only</option><option value="cached">Cached only</option></select>
-  <button id="apply" type="button">Apply</button>
-  <label class="muted"><input type="checkbox" id="auto" checked> auto-refresh</label>
-  <button id="clear" type="button" class="danger">Clear logs</button>
+  <input id="q" placeholder="搜索域名 / 客户端 IP（即时搜索）" size="32">
+  <select id="f"><option value="all">全部</option><option value="blocked">仅拦截</option><option value="cached">仅缓存</option></select>
+  <label class="muted"><input type="checkbox" id="auto" checked> 自动刷新</label>
+  <button id="clear" type="button" class="danger">清空日志</button>
 </div>
-<table>
-  <thead><tr><th>Time</th><th>Client</th><th>Domain</th><th>Type</th><th>Status</th><th class="num">ms</th><th>Upstream / rule</th></tr></thead>
-  <tbody id="logs"></tbody>
+<table id="logs">
+  <thead><tr><th>时间</th><th>客户端</th><th>域名</th><th>类型</th><th>状态</th><th class="num">耗时</th><th>上游 / 规则</th></tr></thead>
+  <tbody id="logsBody"></tbody>
 </table>
 <div class="pager">
-  <button id="prev" type="button">‹ Prev</button>
+  <button id="prev" type="button">‹ 上一页</button>
   <span class="muted" id="pageInfo"></span>
-  <button id="next" type="button">Next ›</button>
+  <button id="next" type="button">下一页 ›</button>
 </div>
 
-<footer class="muted">Endpoints: <code>GET /api/v1/stats|top|history|logs</code>, <code>POST /api/v1/logs/clear</code> under the API base. Equivalent: <code>curl http://HOST:9091/plugins/stats_collector/api/v1/stats</code></footer>
+<div id="overlay">
+  <div id="dialog" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <h3 id="dTitle">查询日志详情</h3>
+    <div class="d-head">
+      <span class="d-title"><span class="mono" id="dDomain">-</span> <span class="qtype" id="dQtype">A</span></span>
+      <span><span id="dStatus"></span> <span class="mono muted" id="dElapsed"></span></span>
+    </div>
+    <div class="meta">
+      <div class="item"><div class="k">客户端</div><div class="v mono" id="dClient">-</div></div>
+      <div class="item"><div class="k">时间</div><div class="v mono" id="dTime">-</div></div>
+      <div class="item"><div class="k">上游</div><div class="v mono" id="dUpstream">-</div></div>
+      <div class="item"><div class="k">命中规则</div><div class="v mono" id="dRule">-</div></div>
+    </div>
+    <h3 style="font-size:.95rem">解析结果 <span class="muted" id="dAnsCount"></span></h3>
+    <div id="dAnswers"></div>
+    <div class="d-actions"><button id="dClose" type="button">关闭</button></div>
+  </div>
+</div>
+
+<footer class="muted">接口：API 地址下 <code>GET /api/v1/stats|top|history|logs</code>，<code>POST /api/v1/logs/clear</code>。等价命令：<code>curl http://主机:9091/plugins/stats_collector/api/v1/stats</code></footer>
 
 <script>
 'use strict';
-const PAGE_SIZE = 20; // same as LuCI statistics.js
+const PAGE_SIZE = 20; // 与 LuCI statistics.js 一致
 const $ = (id) => document.getElementById(id);
 const errBox = $('err');
 
@@ -100,12 +137,13 @@ const defaultBase = () => 'http://' + location.hostname + ':9091/plugins/stats_c
 let apiBase = localStorage.getItem('mosdns_api_base') || defaultBase();
 $('apiBase').value = apiBase;
 
-let page = 0, logTotal = 0;
+let page = 0, logTotal = 0, lastItems = [];
+let searchTimer = null;
 
 function showErr(msg) {
   if (!msg) { errBox.style.display = 'none'; errBox.textContent = ''; return; }
   errBox.style.display = 'block';
-  errBox.textContent = 'API unreachable: ' + msg + ' — check that mosdns runs with the stats_api plugin and the API port is reachable.';
+  errBox.textContent = 'API 不可达：' + msg + '——请确认 mosdns 正在运行且 stats_api 插件已启用、API 端口可访问。';
 }
 
 async function get(path, opts) {
@@ -115,29 +153,30 @@ async function get(path, opts) {
 }
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtNum = (n) => (n || 0).toLocaleString();
 
 function statusPill(e) {
-  if (e.is_blocked) return '<span class="pill block">blocked</span>';
-  if (e.is_cached) return '<span class="pill cache">cached</span>';
-  return '<span class="pill ok">' + esc(e.status) + '</span>';
+  if (e.is_blocked) return '<span class="pill block">已拦截</span>';
+  if (e.is_cached) return '<span class="pill cache">缓存命中</span>';
+  return '<span class="pill ok">' + esc(e.status || 'NOERROR') + '</span>';
 }
 
 async function refreshStats() {
   const s = await get('/api/v1/stats');
-  $('mTotal').textContent = (s.total_queries || 0).toLocaleString();
-  $('mBlocked').textContent = (s.blocked_queries || 0).toLocaleString();
-  $('mBlockedPct').textContent = (s.blocked_percentage || 0) + '% blocked';
-  $('mCached').textContent = (s.cached_queries || 0).toLocaleString();
-  $('mCachedPct').textContent = (s.cached_percentage || 0) + '% hit rate';
-  $('mLatency').textContent = (s.avg_latency_ms || 0) + ' ms';
-  $('mQps').innerHTML = '<span class="live">● Live</span> ' + (s.qps || 0) + ' QPS';
+  $('mTotal').textContent = fmtNum(s.total_queries);
+  $('mBlocked').textContent = fmtNum(s.blocked_queries);
+  $('mBlockedPct').textContent = '拦截率 ' + (s.blocked_percentage || 0) + '%';
+  $('mCached').textContent = fmtNum(s.cached_queries);
+  $('mCachedPct').textContent = '命中率 ' + (s.cached_percentage || 0) + '%';
+  $('mLatency').textContent = (s.avg_latency_ms || 0) + ' 毫秒';
+  $('mQps').innerHTML = '<span class="live">● 实时</span> ' + (s.qps || 0) + ' QPS';
 }
 
 async function refreshTop() {
   const t = await get('/api/v1/top?limit=10');
   const rows = (arr, key) => (arr || []).map((it) =>
-    '<tr><td class="domain">' + esc(it[key]) + '</td><td class="num">' + it.count.toLocaleString() + '</td></tr>').join('')
-    || '<tr><td colspan="2" class="muted">no data yet</td></tr>';
+    '<tr><td class="domain">' + esc(it[key]) + '</td><td class="num">' + fmtNum(it.count) + '</td></tr>').join('')
+    || '<tr><td colspan="2" class="muted">暂无数据</td></tr>';
   $('topDomains').innerHTML = rows(t.top_domains, 'domain');
   $('topBlocked').innerHTML = rows(t.top_blocked, 'domain');
   $('topClients').innerHTML = rows(t.top_clients, 'client_ip');
@@ -149,11 +188,11 @@ async function refreshHistory() {
   const max = Math.max(1, ...pts.map((p) => p.total));
   $('history').innerHTML = pts.map((p) => {
     const ht = Math.max(2, Math.round((p.total / max) * 88));
-    const title = esc(p.time) + ' total=' + p.total + ' blocked=' + p.blocked + ' cached=' + p.cached;
+    const title = esc(p.time) + ' 总计=' + p.total + ' 拦截=' + p.blocked + ' 缓存=' + p.cached;
     const cls = p.blocked > 0 ? 'bar blocked' : 'bar';
     return '<div class="' + cls + '" style="height:' + ht + 'px" title="' + title + '"></div>';
   }).join('');
-  $('historyLegend').textContent = pts.length ? ('oldest ' + pts[0].time + ' → newest ' + pts[pts.length - 1].time) : 'no data yet';
+  $('historyLegend').textContent = pts.length ? ('最早 ' + pts[0].time + ' → 最新 ' + pts[pts.length - 1].time) : '暂无数据';
 }
 
 async function refreshLogs() {
@@ -161,37 +200,71 @@ async function refreshLogs() {
   const d = await get('/api/v1/logs?limit=' + PAGE_SIZE + '&offset=' + (page * PAGE_SIZE)
     + '&search=' + encodeURIComponent(search) + '&filter=' + encodeURIComponent(filter));
   logTotal = d.total || 0;
-  $('logs').innerHTML = (d.items || []).map((e) =>
-    '<tr><td>' + esc(e.timestamp) + '</td><td>' + esc(e.client_ip) + '</td>' +
+  lastItems = d.items || [];
+  $('logsBody').innerHTML = lastItems.map((e, i) =>
+    '<tr data-idx="' + i + '" title="点击查看详情"><td>' + esc(e.timestamp) + '</td><td>' + esc(e.client_ip) + '</td>' +
     '<td class="domain">' + esc(e.domain) + '</td><td>' + esc(e.qtype) + '</td>' +
     '<td>' + statusPill(e) + '</td><td class="num">' + (e.elapsed_ms || 0) + '</td>' +
     '<td class="muted">' + esc(e.upstream || e.rule || '') + '</td></tr>').join('')
-    || '<tr><td colspan="7" class="muted">no matching logs</td></tr>';
+    || '<tr><td colspan="7" class="muted">没有匹配的日志</td></tr>';
   const pages = Math.max(1, Math.ceil(logTotal / PAGE_SIZE));
-  $('pageInfo').textContent = 'page ' + (page + 1) + ' / ' + pages + ' · ' + logTotal + ' entries';
+  $('pageInfo').textContent = '第 ' + (page + 1) + ' / ' + pages + ' 页 · 共 ' + logTotal + ' 条';
   $('prev').disabled = page <= 0;
   $('next').disabled = page >= pages - 1;
 }
 
+/* 详情弹窗（对标 LuCI showLogDetailsModal） */
+function openDetail(item) {
+  if (!item) return;
+  $('dDomain').textContent = item.domain || '-';
+  $('dQtype').textContent = item.qtype || 'A';
+  $('dStatus').innerHTML = statusPill(item);
+  $('dElapsed').textContent = (item.elapsed_ms || 0) + ' 毫秒';
+  $('dClient').textContent = item.client_ip || '-';
+  $('dTime').textContent = item.timestamp || '-';
+  $('dUpstream').textContent = item.upstream || '-';
+  $('dRule').textContent = item.rule || '-';
+  const answers = item.answers || [];
+  $('dAnsCount').textContent = '（' + answers.length + ' 条）';
+  $('dAnswers').innerHTML = answers.length ? answers.map((a) =>
+    '<div class="ans"><span class="qtype">' + esc(a.type || 'A') + '</span>' +
+    '<span class="data mono">' + esc(a.data) + '</span>' +
+    '<span class="muted mono">TTL ' + a.ttl + 's</span></div>').join('')
+    : '<div class="muted">未返回 DNS 解析记录。</div>';
+  $('overlay').classList.add('open');
+}
+function closeDetail() { $('overlay').classList.remove('open'); }
+
 async function refreshAll() {
   try {
     await Promise.all([refreshStats(), refreshTop(), refreshHistory(), refreshLogs()]);
-    $('updated').textContent = 'updated ' + new Date().toLocaleTimeString();
+    $('updated').textContent = '更新于 ' + new Date().toLocaleTimeString();
     showErr(null);
   } catch (e) { showErr(e.message); }
 }
 
 $('saveApi').onclick = () => { apiBase = $('apiBase').value.trim().replace(/\/+$/, ''); localStorage.setItem('mosdns_api_base', apiBase); page = 0; refreshAll(); };
-$('apply').onclick = () => { page = 0; refreshLogs().catch((e) => showErr(e.message)); };
-$('q').onkeydown = (ev) => { if (ev.key === 'Enter') $('apply').click(); };
+/* 即时搜索：输入后 300ms 自动查询 */
+$('q').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { page = 0; refreshLogs().catch((e) => showErr(e.message)); }, 300);
+});
 $('f').onchange = () => { page = 0; refreshLogs().catch((e) => showErr(e.message)); };
 $('prev').onclick = () => { if (page > 0) { page--; refreshLogs().catch((e) => showErr(e.message)); } };
 $('next').onclick = () => { page++; refreshLogs().catch((e) => showErr(e.message)); };
 $('clear').onclick = async () => {
-  if (!confirm('Clear query logs and top statistics?')) return;
+  if (!confirm('确定要清空查询日志和排行统计吗？')) return;
   await get('/api/v1/logs/clear', { method: 'POST' });
   page = 0; refreshAll();
 };
+/* 点击行看详情（事件委托，rows 由 refreshLogs 重绘） */
+$('logsBody').addEventListener('click', (ev) => {
+  const tr = ev.target.closest('tr[data-idx]');
+  if (tr) openDetail(lastItems[Number(tr.dataset.idx)]);
+});
+$('dClose').onclick = closeDetail;
+$('overlay').addEventListener('click', (ev) => { if (ev.target === $('overlay')) closeDetail(); });
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeDetail(); });
 
 refreshAll();
 setInterval(() => { if ($('auto').checked) refreshAll(); }, 5000);
