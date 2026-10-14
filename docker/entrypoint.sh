@@ -23,12 +23,13 @@ API_LISTEN="${API_LISTEN:-0.0.0.0:9091}"
 LOG_LEVEL="${LOG_LEVEL:-info}"
 LOG_FILE="${LOG_FILE:-}"
 
-# If the user passed mosdns args (default CMD does), honor `-c <path>` as CONFIG.
+# If the user passed mosdns args (default CMD does), honor -c/--config as CONFIG.
 prev=""
 for a in "$@"; do
-    if [ "$prev" = "-c" ]; then
-        CONFIG="$a"
-    fi
+    case "$a" in
+        --config=*) CONFIG="${a#--config=}" ;;
+        *) if [ "$prev" = "-c" ] || [ "$prev" = "--config" ]; then CONFIG="$a"; fi ;;
+    esac
     prev="$a"
 done
 
@@ -126,12 +127,45 @@ for need in "$TXT_DIR/geosite_cn.txt" "$TXT_DIR/geoip_cn.txt" "$TXT_DIR/geosite_
 done
 
 # ---- env overrides for the stock config (skip with APPLY_ENV_CONFIG=0) ----
+# NOTE: never sed -i the config in place: it is commonly a (read-only) bind
+# mount, and renaming over a mount point fails with "Resource busy".
+# Work on a temp copy and point mosdns at it instead.
 if [ "$APPLY_ENV_CONFIG" = "1" ] && [ -f "$CONFIG" ]; then
-    sed -i "s#\(listen:[[:space:]]*\"\)[^\"]*\(\"\)#\1${LISTEN_ADDR}:${LISTEN_PORT}\2#g" "$CONFIG"
-    sed -i "s#\(http:[[:space:]]*\"\)[^\"]*\(\"\)#\1${API_LISTEN}\2#" "$CONFIG"
-    sed -i "s#\(level:[[:space:]]*\).*#\1${LOG_LEVEL}#" "$CONFIG"
+    TMP_CONFIG="$(mktemp /tmp/mosdns-config.XXXXXX.yaml)"
+    cp -f "$CONFIG" "$TMP_CONFIG"
+    sed -i "s#\(listen:[[:space:]]*\"\)[^\"]*\(\"\)#\1${LISTEN_ADDR}:${LISTEN_PORT}\2#g" "$TMP_CONFIG"
+    sed -i "s#\(http:[[:space:]]*\"\)[^\"]*\(\"\)#\1${API_LISTEN}\2#" "$TMP_CONFIG"
+    sed -i "s#\(level:[[:space:]]*\).*#\1${LOG_LEVEL}#" "$TMP_CONFIG"
     # NOTE: `file:` is anchored to line start so cache/stats `dump_file:` is untouched.
-    sed -i "s#^\([[:space:]]*file:[[:space:]]*\"\)[^\"]*\(\"\)#\1${LOG_FILE}\2#" "$CONFIG"
+    sed -i "s#^\([[:space:]]*file:[[:space:]]*\"\)[^\"]*\(\"\)#\1${LOG_FILE}\2#" "$TMP_CONFIG"
+
+    # Rewrite the -c/--config argument to the temp copy, keep all other args.
+    saved_n=$#
+    i=1
+    while [ "$i" -le "$saved_n" ]; do
+        eval "o_$i=\${$i}"
+        i=$((i + 1))
+    done
+    set --
+    i=1
+    prev=""
+    while [ "$i" -le "$saved_n" ]; do
+        eval "orig=\$o_$i"
+        arg="$orig"
+        case "$orig" in
+            --config=*) arg="--config=$TMP_CONFIG" ;;
+            *) if [ "$prev" = "-c" ] || [ "$prev" = "--config" ]; then arg="$TMP_CONFIG"; fi ;;
+        esac
+        prev="$orig"
+        set -- "$@" "$arg"
+        i=$((i + 1))
+    done
+    i=1
+    while [ "$i" -le "$saved_n" ]; do
+        eval "unset o_$i"
+        i=$((i + 1))
+    done
+    CONFIG="$TMP_CONFIG"
 fi
 
 log "Starting: mosdns $* (config: $CONFIG)"
