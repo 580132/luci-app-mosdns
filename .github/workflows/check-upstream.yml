@@ -1,0 +1,161 @@
+name: Check upstream updates
+
+# Weekly upstream watch: mosdns releases, geo2txt releases and new commits on
+# the packaging branch. Opens a PR for each finding (with a test build baked
+# into the PR body). Merging the PR triggers the normal image build.
+# Nothing is auto-merged: a human always reviews (patches may need attention
+# when upstream mosdns moves).
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # weekly, Monday 02:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: check-upstream
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Check and open PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          CUR_MOSDNS="$(sed -n 's/^ARG MOSDNS_VERSION=//p' Dockerfile)"
+          CUR_GEO="$(sed -n 's/^ARG GEO2TXT_VERSION=//p' Dockerfile)"
+          CUR_REF="$(sed -n 's/^ARG PACKAGING_REF=//p' Dockerfile)"
+          LOCK_SHA="$(python3 -c "import json;print(json.load(open('docker/upstream.lock'))['packaging_sha'])")"
+
+          newer_than() { # $1=current $2=candidate -> 0 if candidate is newer
+            [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1)" = "$2" ]
+          }
+
+          pr_open() { # $1=branch -> 0 if an open PR already exists
+            gh pr list --head "$1" --state open --jq '.[].number' | grep -q .
+          }
+
+          test_build() { # $1=branch -> prints pass|fail (amd64, no push)
+            br="$1"
+            git checkout -q "$br"
+            if docker buildx build --platform linux/amd64 -t "upstream-test:${br##*/}" . >"/tmp/build-${br##*/}.log" 2>&1; then
+              echo "pass"
+            else
+              echo "fail"
+            fi
+            git checkout -q v5
+          }
+
+          push_br() { # $1=branch
+            git push -f origin "$1:$1"
+          }
+
+          # ---------------- mosdns release ----------------
+          LATEST_MOSDNS="$(gh api repos/IrineSistiana/mosdns/releases/latest --jq .tag_name | sed 's/^v//')"
+          echo "mosdns: current=$CUR_MOSDNS latest=$LATEST_MOSDNS"
+          if newer_than "$CUR_MOSDNS" "$LATEST_MOSDNS"; then
+            BR="upstream/mosdns-${LATEST_MOSDNS}"
+            if pr_open "$BR"; then
+              echo "PR already open for $BR, skipping."
+            else
+              NEW_HASH="$(curl -fsSL "https://codeload.github.com/IrineSistiana/mosdns/tar.gz/v${LATEST_MOSDNS}" -o /tmp/mosdns.tgz && sha256sum /tmp/mosdns.tgz | cut -d' ' -f1)"
+              git checkout -qB "$BR" v5
+              sed -i "s/^ARG MOSDNS_VERSION=.*/ARG MOSDNS_VERSION=${LATEST_MOSDNS}/" Dockerfile
+              sed -i "s/^ARG MOSDNS_HASH=.*/ARG MOSDNS_HASH=${NEW_HASH}/" Dockerfile
+              git add Dockerfile
+              git commit -qm "bump mosdns to ${LATEST_MOSDNS}"
+              push_br "$BR"
+              BUILD="$(test_build "$BR")"
+              {
+                echo "Upstream \`IrineSistiana/mosdns\` released \`v${LATEST_MOSDNS}\`."
+                echo
+                echo "- Release: https://github.com/IrineSistiana/mosdns/releases/tag/v${LATEST_MOSDNS}"
+                echo "- Test build (linux/amd64, patches applied): **${BUILD}**"
+                if [ "$BUILD" = "fail" ]; then
+                  echo "- The patch set may need attention for this upstream version. Check the Actions log of the check run."
+                fi
+                echo
+                echo "Merging this PR triggers the image build."
+              } > /tmp/pr-mosdns.md
+              gh pr create --base v5 --head "$BR" \
+                --title "chore: bump mosdns to ${LATEST_MOSDNS}" --body-file /tmp/pr-mosdns.md
+            fi
+          fi
+
+          # ---------------- geo2txt release ----------------
+          LATEST_GEO="$(gh api repos/sbwml/geo2txt/releases/latest --jq .tag_name | sed 's/^v//')"
+          echo "geo2txt: current=$CUR_GEO latest=$LATEST_GEO"
+          if newer_than "$CUR_GEO" "$LATEST_GEO"; then
+            BR="upstream/geo2txt-${LATEST_GEO}"
+            if pr_open "$BR"; then
+              echo "PR already open for $BR, skipping."
+            else
+              git checkout -qB "$BR" v5
+              sed -i "s/^ARG GEO2TXT_VERSION=.*/ARG GEO2TXT_VERSION=${LATEST_GEO}/" Dockerfile
+              git add Dockerfile
+              git commit -qm "bump geo2txt to ${LATEST_GEO}"
+              push_br "$BR"
+              BUILD="$(test_build "$BR")"
+              {
+                echo "Upstream \`sbwml/geo2txt\` released \`${LATEST_GEO}\`."
+                echo
+                echo "- Test build (linux/amd64): **${BUILD}**"
+                echo
+                echo "Merging this PR triggers the image build."
+              } > /tmp/pr-geo.md
+              gh pr create --base v5 --head "$BR" \
+                --title "chore: bump geo2txt to ${LATEST_GEO}" --body-file /tmp/pr-geo.md
+            fi
+          fi
+
+          # ---------------- packaging branch commits ----------------
+          HEAD_SHA="$(gh api "repos/sbwml/luci-app-mosdns/commits/${CUR_REF}" --jq .sha)"
+          echo "packaging: locked=$LOCK_SHA head=$HEAD_SHA"
+          if [ "$HEAD_SHA" != "$LOCK_SHA" ]; then
+            SHORT="$(echo "$HEAD_SHA" | cut -c1-12)"
+            BR="upstream/packaging-${SHORT}"
+            if pr_open "$BR"; then
+              echo "PR already open for $BR, skipping."
+            else
+              COMMITS="$(gh api "repos/sbwml/luci-app-mosdns/compare/${LOCK_SHA}...${HEAD_SHA}" --jq '.commits[] | "- " + (.commit.message | split("\n")[0])' || echo "- (compare unavailable)")"
+              git checkout -qB "$BR" v5
+              printf '{\n  "packaging_ref": "%s",\n  "packaging_sha": "%s"\n}\n' "$CUR_REF" "$HEAD_SHA" > docker/upstream.lock
+              git add docker/upstream.lock
+              git commit -qm "sync packaging ${CUR_REF} to ${SHORT}"
+              push_br "$BR"
+              BUILD="$(test_build "$BR")"
+              {
+                echo "Upstream packaging branch \`${CUR_REF}\` has new commits (patch set may have changed)."
+                echo
+                echo "$COMMITS"
+                echo
+                echo "- Test build (linux/amd64, new patches applied): **${BUILD}**"
+                if [ "$BUILD" = "fail" ]; then
+                  echo "- The patch set may need attention. Check the Actions log of the check run."
+                fi
+                echo
+                echo "Merging this PR triggers the image build (branch-tracked, so the next build picks the patches up either way)."
+              } > /tmp/pr-pack.md
+              gh pr create --base v5 --head "$BR" \
+                --title "chore: sync packaging ${CUR_REF} to ${SHORT}" --body-file /tmp/pr-pack.md
+            fi
+          fi
+
+          echo "check done."
