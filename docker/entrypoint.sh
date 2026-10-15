@@ -44,95 +44,22 @@ for f in whitelist blocklist hosts redirect greylist ddnslist streaming local-pt
     fi
 done
 
-# ---- geo data download (replaces mosdns.uc update_geodat, no uci needed) ----
-GEO_BASE="https://github.com/Loyalsoldier/geoip/releases/latest/download/${GEOIP_TYPE}.dat"
-SITE_URL="https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat"
-if [ -n "$GITHUB_PROXY" ]; then
-    # normalize trailing slash
-    case "$GITHUB_PROXY" in */) ;; *) GITHUB_PROXY="$GITHUB_PROXY/";; esac
-    GEO_BASE="${GITHUB_PROXY}${GEO_BASE}"
-    SITE_URL="${GITHUB_PROXY}${SITE_URL}"
-fi
-
-download() { # $1=url $2=dest
-    log "Downloading $1"
-    curl -fsSL --connect-timeout 10 --retry 2 -o "$2" "$1"
-}
-
-fetch_dat() { # $1=url $2=localfile
-    url="$1"; local_file="$2"; tmp_file="${local_file}.tmp"
-    if [ ! -f "$local_file" ]; then
-        download "$url" "$tmp_file" && mv -f "$tmp_file" "$local_file"
-        return $?
-    fi
-    if [ "$GEO_AUTO_UPDATE" != "1" ]; then
-        return 0
-    fi
-    if download "${url}.sha256sum" "${tmp_file}.sha256sum"; then
-        remote_sum="$(cut -d' ' -f1 "${tmp_file}.sha256sum")"
-        local_sum="$(sha256sum "$local_file" | cut -d' ' -f1)"
-        rm -f "${tmp_file}.sha256sum"
-        if [ "$remote_sum" = "$local_sum" ]; then
-            log "$local_file is up to date."
-            return 0
-        fi
-        log "$local_file is outdated, updating..."
-        download "$url" "$tmp_file" || return 1
-        if [ "$(sha256sum "$tmp_file" | cut -d' ' -f1)" != "$remote_sum" ]; then
-            log "Checksum mismatch for $local_file, keeping old file."
-            rm -f "$tmp_file"
-            return 1
-        fi
-        mv -f "$tmp_file" "$local_file"
-    else
-        log "Checksum download failed, keeping existing $local_file."
-        rm -f "${tmp_file}.sha256sum"
-    fi
-    return 0
-}
-
-geo_ok=1
-fetch_dat "$GEO_BASE" "$V2DAT_DIR/geoip.dat" || geo_ok=0
-fetch_dat "$SITE_URL" "$V2DAT_DIR/geosite.dat" || geo_ok=0
-
-# ---- dump txt rules with geo2txt (replaces mosdns.uc v2dat_dump) ----
-if [ -f "$V2DAT_DIR/geoip.dat" ] && [ -f "$V2DAT_DIR/geosite.dat" ]; then
-    geo2txt geoip -f "$V2DAT_DIR/geoip.dat" -e cn -o "$TXT_DIR"
-    geo2txt geosite -f "$V2DAT_DIR/geosite.dat" -e cn -e 'geolocation-!cn' -o "$TXT_DIR"
-    if [ -n "$GEOIP_TAGS" ]; then
-        tags="$(printf '%s' "$GEOIP_TAGS" | tr ',' ' ')"
-        # shellcheck disable=SC2086
-        geo2txt geoip -f "$V2DAT_DIR/geoip.dat" $(
-            for t in $tags; do printf '%s' "-e $t "; done
-        ) -o "$TXT_DIR"
-    fi
-    if [ -n "$GEOSITE_TAGS" ]; then
-        tags="$(printf '%s' "$GEOSITE_TAGS" | tr ',' ' ')"
-        # shellcheck disable=SC2086
-        geo2txt geosite -f "$V2DAT_DIR/geosite.dat" $(
-            for t in $tags; do printf '%s' "-e $t "; done
-        ) -o "$TXT_DIR"
-    fi
-else
-    log "WARNING: geo .dat files missing and download failed (offline?)."
-    geo_ok=0
+# ---- data update: geo + adlist (port of `mosdns.uc update`) ----
+# Best-effort at boot: an offline first start fails below with a clear message,
+# a later offline restart keeps serving previous files.
+# Refresh any time without restart: docker exec <container> update-data
+# (mosdns picks up file changes automatically via its file watcher).
+if [ -x /usr/local/bin/update-data ]; then
+    /usr/local/bin/update-data || log "WARNING: data update failed at startup."
 fi
 
 # The default config references these files; fail fast with a clear message.
 for need in "$TXT_DIR/geosite_cn.txt" "$TXT_DIR/geoip_cn.txt" "$TXT_DIR/geosite_geolocation-!cn.txt"; do
     if [ ! -f "$need" ]; then
         log "ERROR: required geo file $need not found. Check network or mount it manually."
-        [ "$geo_ok" = "1" ] || exit 1
+        exit 1
     fi
 done
-
-# ---- ad rule aggregation (port of mosdns.uc update_adlist) ----
-# Best-effort: an offline start keeps serving the previous aggregate.
-# Refresh any time without restart: docker exec <container> update-adlists
-# (mosdns picks up file changes automatically via its file watcher).
-if [ -x /usr/local/bin/update-adlists ]; then
-    /usr/local/bin/update-adlists || log "WARNING: adlist update failed, continuing."
-fi
 # The adlist plugin requires its file to exist; guarantee a valid placeholder.
 if [ ! -f "$TXT_DIR/adlist.txt" ]; then
     printf '# MosDNS adlist (placeholder)\n' > "$TXT_DIR/adlist.txt"
@@ -184,6 +111,30 @@ if [ "$APPLY_ENV_CONFIG" = "1" ] && [ -f "$CONFIG" ]; then
 fi
 
 log "Starting: mosdns $* (config: $CONFIG)"
+
+# ---- periodic background refresh (zero-downtime) ----
+# Dumps are published atomically and mosdns reloads changed files through its
+# file watcher (patches 206/207), so DNS keeps serving while data refreshes.
+# AUTO_UPDATE=0 disables the loop (updates then only happen at container start
+# or via `docker exec <ctr> update-data`).
+if [ "${AUTO_UPDATE:-1}" = "1" ]; then
+    (
+        set +e
+        interval="${UPDATE_CHECK_INTERVAL:-86400}"
+        case "$interval" in ''|*[!0-9]*)
+            log "WARNING: invalid UPDATE_CHECK_INTERVAL '$interval', using 86400."
+            interval=86400
+            ;;
+        esac
+        log "Background updater started (every ${interval}s)."
+        while true; do
+            sleep "$interval"
+            if [ -x /usr/local/bin/update-data ]; then
+                /usr/local/bin/update-data || log "WARNING: periodic data update failed."
+            fi
+        done
+    ) &
+fi
 
 # Standalone stats dashboard (replaces the LuCI statistics view).
 # A failing dashboard must never kill DNS, so every launcher is guarded.

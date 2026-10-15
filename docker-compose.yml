@@ -23,7 +23,12 @@ services:
       # ADBLOCK: "1"
       # AD_SOURCES: "geosite.dat https://anti-ad.net/easylist.txt file:///etc/mosdns/rule/my-ads.txt"
       # AD_UPDATE_INTERVAL: "604800"  # seconds; 0 = download only when missing
-      # Refresh without restart: docker exec mosdns update-adlists
+      # Refresh without restart: docker exec mosdns update-data
+      # --- background refresh: geo + adlist, zero-downtime via file watcher ---
+      # AUTO_UPDATE: "1"             # 0 = only refresh at container start
+      # UPDATE_CHECK_INTERVAL: "86400"  # how often to check (per-source thresholds still apply)
+      # Manual trigger without restart:
+      #   docker exec mosdns update-data
     volumes:
       # Persist config/rules/geo across recreates; comment out to use image defaults.
       - ./docker/config.yaml:/etc/mosdns/config.yaml:ro

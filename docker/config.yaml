@@ -71,7 +71,7 @@ plugins:
       files:
         - "/etc/mosdns/rule/blocklist.txt"
 
-  # Downloaded ad rules, aggregated by update-adlists into a single file.
+  # Downloaded ad rules, aggregated by update-data into a single file.
   # Same format support as blocklist. Empty when ADBLOCK=0.
   - tag: adlist
     type: adblock_set

@@ -83,12 +83,12 @@ COPY --from=geo2txt-builder /out/geo2txt /usr/bin/geo2txt
 COPY docker/config.yaml /etc/mosdns/config.yaml
 COPY luci-app-mosdns/root/etc/mosdns/rule/ /etc/mosdns/rule/
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY docker/update-adlists.sh /usr/local/bin/update-adlists
+COPY docker/update-data.sh /usr/local/bin/update-data
 # Standalone stats dashboard (replaces the LuCI statistics.js view).
 # Served by busybox httpd; the page calls the stats_api HTTP endpoints directly
 # (CORS is already Access-Control-Allow-Origin: * in the patched plugin).
 COPY docker/stats/ /usr/share/mosdns-stats/
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/update-adlists \
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/update-data \
     && mkdir -p /var/lib/mosdns /usr/share/v2ray /var/log
 
 ENV CONFIG=/etc/mosdns/config.yaml \
@@ -103,7 +103,9 @@ ENV CONFIG=/etc/mosdns/config.yaml \
     STATS_UI_PORT=8080 \
     ADBLOCK=0 \
     AD_SOURCES="" \
-    AD_UPDATE_INTERVAL=604800
+    AD_UPDATE_INTERVAL=604800 \
+    AUTO_UPDATE=1 \
+    UPDATE_CHECK_INTERVAL=86400
 
 EXPOSE 53/udp 53/tcp 9091/tcp 8080/tcp
 
