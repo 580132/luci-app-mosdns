@@ -126,13 +126,17 @@ if [ "${AUTO_UPDATE:-1}" = "1" ]; then
             interval=86400
             ;;
         esac
-        log "Background updater started (every ${interval}s)."
-        while true; do
-            sleep "$interval"
-            if [ -x /usr/local/bin/update-data ]; then
-                /usr/local/bin/update-data || log "WARNING: periodic data update failed."
-            fi
-        done
+        if [ "$interval" = "0" ]; then
+            log "Periodic refresh disabled (UPDATE_CHECK_INTERVAL=0)."
+        else
+            log "Background updater started (every ${interval}s)."
+            while true; do
+                sleep "$interval"
+                if [ -x /usr/local/bin/update-data ]; then
+                    /usr/local/bin/update-data || log "WARNING: periodic data update failed."
+                fi
+            done
+        fi
     ) &
 fi
 

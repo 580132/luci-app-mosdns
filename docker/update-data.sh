@@ -24,8 +24,9 @@
 #   V2DAT_DIR=/usr/share/v2ray TXT_DIR=/var/lib/mosdns
 #   ADBLOCK=0|1                ad aggregation master switch (default 0)
 #   AD_SOURCES=""              e.g. "geosite.dat https://anti-ad.net/easylist.txt"
-#   AD_UPDATE_INTERVAL=604800  re-download when the local copy is older
-#                              (seconds, 0 = only when missing)
+#   UPDATE_CHECK_INTERVAL=86400  background loop cadence; doubles as the ad
+#                              re-download threshold (local copy older than this
+#                              gets refreshed, 0 = only download when missing)
 #   ADLIST_DIR=$TXT_DIR/adlist
 #
 # Exit 0 when the required txt files exist afterwards, 1 otherwise.
@@ -42,7 +43,7 @@ GEOIP_URL="${GEOIP_URL:-}"
 GEOSITE_URL="${GEOSITE_URL:-}"
 ADBLOCK="${ADBLOCK:-0}"
 AD_SOURCES="${AD_SOURCES:-}"
-AD_UPDATE_INTERVAL="${AD_UPDATE_INTERVAL:-604800}"
+UPDATE_CHECK_INTERVAL="${UPDATE_CHECK_INTERVAL:-86400}"
 ADLIST_DIR="${ADLIST_DIR:-$TXT_DIR/adlist}"
 AGGREGATE="$TXT_DIR/adlist.txt"
 LOCK_DIR="${LOCK_DIR:-/tmp/mosdns-update.lock}"
@@ -212,11 +213,11 @@ else
                 esac
                 need=1
                 if [ -f "$dest" ]; then
-                    if [ "$AD_UPDATE_INTERVAL" = "0" ]; then
+                    if [ "$UPDATE_CHECK_INTERVAL" = "0" ]; then
                         need=0
                     else
                         age=$(( $(date +%s) - $(stat -c %Y "$dest") ))
-                        [ "$age" -lt "$AD_UPDATE_INTERVAL" ] && need=0
+                        [ "$age" -lt "$UPDATE_CHECK_INTERVAL" ] && need=0
                     fi
                 fi
                 if [ "$need" = "1" ]; then
