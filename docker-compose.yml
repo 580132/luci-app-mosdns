@@ -26,6 +26,10 @@ services:
       # AUTO_UPDATE: "1"             # 0 = only refresh at container start
       # UPDATE_CHECK_INTERVAL: "86400"  # loop cadence + ad re-download threshold;
                                       # 0 = disable loop (missing files still fetched)
+      # UPDATE_AT: "03:00"            # wall-clock mode: run daily at these local
+                                      # times ("03:00,15:00"); overrides interval loop.
+                                      # Container TZ applies (default UTC), e.g. TZ: "Asia/Shanghai"
+      # TZ: "Asia/Shanghai"
       # Manual trigger without restart:
       #   docker exec mosdns update-data
     volumes:

@@ -116,7 +116,8 @@ ENV CONFIG=/etc/mosdns/config.yaml \
     ADBLOCK=0 \
     AD_SOURCES="" \
     AUTO_UPDATE=1 \
-    UPDATE_CHECK_INTERVAL=86400
+    UPDATE_CHECK_INTERVAL=86400 \
+    UPDATE_AT=""
 
 EXPOSE 53/udp 53/tcp 9091/tcp 8080/tcp
 

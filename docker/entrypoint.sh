@@ -112,30 +112,82 @@ fi
 
 log "Starting: mosdns $* (config: $CONFIG)"
 
+# --- next_wait start ---
+# next_wait "HH:MM[,HH:MM...]" -> prints seconds until the next occurrence.
+# Pure arithmetic on date +%H/%M/%S (no date -d, portable across GNU/busybox).
+next_wait() {
+    items="$(printf '%s' "$1" | tr ',' ' ')"
+    ch=$(date +%H | sed 's/^0*//'); [ -z "$ch" ] && ch=0
+    cm=$(date +%M | sed 's/^0*//'); [ -z "$cm" ] && cm=0
+    cs=$(date +%S | sed 's/^0*//'); [ -z "$cs" ] && cs=0
+    cur=$((ch * 3600 + cm * 60 + cs))
+    best=""
+    # shellcheck disable=SC2086
+    for t in $items; do
+        t="$(printf '%s' "$t" | tr -d ' ')"
+        case "$t" in
+            [0-2][0-9]:[0-5][0-9]) ;;
+            *) continue ;;
+        esac
+        h=${t%%:*}; m=${t##*:}
+        h=$(printf '%s' "$h" | sed 's/^0*//'); [ -z "$h" ] && h=0
+        m=$(printf '%s' "$m" | sed 's/^0*//'); [ -z "$m" ] && m=0
+        [ "$h" -gt 23 ] && continue
+        tgt=$((h * 3600 + m * 60))
+        [ "$tgt" -le "$cur" ] && tgt=$((tgt + 86400))
+        w=$((tgt - cur))
+        if [ -z "$best" ] || [ "$w" -lt "$best" ]; then best="$w"; fi
+    done
+    [ -n "$best" ] || return 1
+    printf '%s\n' "$best"
+}
+# --- next_wait end ---
+
 # ---- periodic background refresh (zero-downtime) ----
 # Dumps are published atomically and mosdns reloads changed files through its
 # file watcher (patches 206/207), so DNS keeps serving while data refreshes.
-# AUTO_UPDATE=0 disables the loop (updates then only happen at container start
-# or via `docker exec <ctr> update-data`).
+# Two modes (AUTO_UPDATE=0 disables both; updates then only happen at
+# container start or via `docker exec <ctr> update-data`):
+#   UPDATE_AT=""            interval mode: run every UPDATE_CHECK_INTERVAL
+#   UPDATE_AT="03:00[,15:00]" wall-clock mode: run at these local times daily
+#                           (container TZ applies; image defaults to UTC)
+# In both modes the freshness rules still apply (geo: sha256 compare; ads:
+# re-download when older than UPDATE_CHECK_INTERVAL), so a run may legitimately
+# download nothing.
 if [ "${AUTO_UPDATE:-1}" = "1" ]; then
     (
         set +e
-        interval="${UPDATE_CHECK_INTERVAL:-86400}"
-        case "$interval" in ''|*[!0-9]*)
-            log "WARNING: invalid UPDATE_CHECK_INTERVAL '$interval', using 86400."
-            interval=86400
-            ;;
-        esac
-        if [ "$interval" = "0" ]; then
-            log "Periodic refresh disabled (UPDATE_CHECK_INTERVAL=0)."
-        else
-            log "Background updater started (every ${interval}s)."
+        if [ -n "${UPDATE_AT:-}" ]; then
+            log "Background updater started (daily at ${UPDATE_AT}, TZ=${TZ:-UTC})."
             while true; do
-                sleep "$interval"
-                if [ -x /usr/local/bin/update-data ]; then
-                    /usr/local/bin/update-data || log "WARNING: periodic data update failed."
+                if wait_s="$(next_wait "$UPDATE_AT")"; then
+                    sleep "$wait_s"
+                    if [ -x /usr/local/bin/update-data ]; then
+                        /usr/local/bin/update-data || log "WARNING: scheduled data update failed."
+                    fi
+                else
+                    log "WARNING: invalid UPDATE_AT '$UPDATE_AT', retry in 1h."
+                    sleep 3600
                 fi
             done
+        else
+            interval="${UPDATE_CHECK_INTERVAL:-86400}"
+            case "$interval" in ''|*[!0-9]*)
+                log "WARNING: invalid UPDATE_CHECK_INTERVAL '$interval', using 86400."
+                interval=86400
+                ;;
+            esac
+            if [ "$interval" = "0" ]; then
+                log "Periodic refresh disabled (UPDATE_CHECK_INTERVAL=0)."
+            else
+                log "Background updater started (every ${interval}s)."
+                while true; do
+                    sleep "$interval"
+                    if [ -x /usr/local/bin/update-data ]; then
+                        /usr/local/bin/update-data || log "WARNING: periodic data update failed."
+                    fi
+                done
+            fi
         fi
     ) &
 fi
