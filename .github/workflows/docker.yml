@@ -8,7 +8,7 @@ on:
       - Dockerfile
       - .dockerignore
       - docker/**
-      - mosdns/**
+      - docker-compose.yml
       - .github/workflows/docker.yml
   release:
     types: [published]

@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# mosdns (OpenWrt sbwml fork, all mosdns/patches applied) as a Docker image.
+# mosdns (sbwml patched set) as a Docker image.
+# Nothing is vendored: upstream mosdns source, the OpenWrt patch set and the
+# rule placeholders are all fetched at build time (PIN via build args).
 # LuCI / uci / procd parts are intentionally dropped: the image ships only
 # the patched mosdns binary + geo2txt + a plain config.yaml + entrypoint.
 #
@@ -13,6 +15,9 @@
 ARG MOSDNS_VERSION=5.3.4
 ARG MOSDNS_RELEASE=14
 ARG GEO2TXT_VERSION=1.0.0
+# Branch, tag (or commit, needs full history) of sbwml/luci-app-mosdns
+# the patch set + rule files are taken from.
+ARG PACKAGING_REF=v5
 ARG GO_IMAGE=golang:1.26-bookworm
 
 # ---------------------------------------------------------------- builder: mosdns
@@ -20,9 +25,10 @@ FROM ${GO_IMAGE} AS mosdns-builder
 ARG MOSDNS_VERSION
 ARG MOSDNS_RELEASE
 ARG MOSDNS_HASH=0302a685db2a6c3c09af7bf4ff0dffd24f1e583383a47f064564f5270033671b
+ARG PACKAGING_REF
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends patch ca-certificates curl \
+    && apt-get install -y --no-install-recommends patch ca-certificates curl git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
@@ -33,14 +39,20 @@ RUN curl -fsSL "https://codeload.github.com/IrineSistiana/mosdns/tar.gz/v${MOSDN
     && tar xzf mosdns.tar.gz --strip-components=1 \
     && rm mosdns.tar.gz
 
+# Patch set + rule placeholders, sparse-checked-out from the packaging repo.
+# Shallow + sparse: only the two needed directories are downloaded.
+RUN git clone --depth 1 --branch "${PACKAGING_REF}" --sparse \
+        https://github.com/sbwml/luci-app-mosdns.git packaging \
+    && git -C packaging sparse-checkout set mosdns/patches luci-app-mosdns/root/etc/mosdns/rule
+
 # Apply every OpenWrt patch (adblock_set, stats_api, cache prefetch,
 # mlog rotation, fallback fixes, ...). Sorted order == filename order.
-COPY mosdns/patches/ ./patches/
 RUN set -e; \
-    for p in $(ls patches/*.patch | sort); do \
+    for p in $(ls packaging/mosdns/patches/*.patch | sort); do \
         echo "==> Applying $p"; \
         patch -p1 < "$p"; \
-    done
+    done; \
+    mkdir -p /out/rules && cp -a packaging/luci-app-mosdns/root/etc/mosdns/rule/. /out/rules/
 
 # mosdns main package lives at the repo root (main.go), version string
 # matches the OpenWrt Makefile: -X main.version=v<VERSION>-r<RELEASE>.
@@ -78,14 +90,14 @@ RUN apk add --no-cache ca-certificates curl tzdata darkhttpd \
 COPY --from=mosdns-builder /out/mosdns /usr/bin/mosdns
 COPY --from=geo2txt-builder /out/geo2txt /usr/bin/geo2txt
 
-# Default config (no uci/procd templating) + rule placeholders.
+# Default config (no uci/procd templating) + rule placeholders from upstream.
 # Mount your own files to override: -v ./my-config.yaml:/etc/mosdns/config.yaml:ro
 COPY docker/config.yaml /etc/mosdns/config.yaml
-COPY luci-app-mosdns/root/etc/mosdns/rule/ /etc/mosdns/rule/
+COPY --from=mosdns-builder /out/rules/ /etc/mosdns/rule/
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY docker/update-data.sh /usr/local/bin/update-data
 # Standalone stats dashboard (replaces the LuCI statistics.js view).
-# Served by busybox httpd; the page calls the stats_api HTTP endpoints directly
+# Served by darkhttpd; the page calls the stats_api HTTP endpoints directly
 # (CORS is already Access-Control-Allow-Origin: * in the patched plugin).
 COPY docker/stats/ /usr/share/mosdns-stats/
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/update-data \

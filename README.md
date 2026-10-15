@@ -1,115 +1,67 @@
-# luci-app-mosdns
+# mosdns-docker
 
-[MosDNS](https://github.com/IrineSistiana/mosdns) is a plug-in DNS forwarder. Users can splicing plug-ins as needed to customize their own DNS processing logic.
+`mosdns` 的 Docker 构建：上游源码 + sbwml 补丁集（`adblock_set`、`stats_api`、缓存预取、日志轮转等 25 个补丁），不含 OpenWrt/LuCI。
 
-## DNS protocol standard
+构建时全部从上游拉取，仓库本身不 fork、不存放上游代码：
 
-**General DNS (UDP):** `119.29.29.29` **&** `udp://119.29.29.29:53`
+| 内容 | 来源 |
+|---|---|
+| mosdns 源码 | `IrineSistiana/mosdns`（tarball，sha256 校验） |
+| 补丁集 + 规则占位文件 | `sbwml/luci-app-mosdns`（`PACKAGING_REF`，sparse checkout） |
+| geo2txt | `sbwml/geo2txt`（源码编译） |
 
-**General DNS (TCP):** `tcp://119.29.29.29` **&** `tcp://119.29.29.29:53`
+## 快速开始
 
-**DNS-over-TLS:** `tls://120.53.53.53` **&** `tls://120.53.53.53:853`
-
-**DNS-over-HTTPS:** `https://120.53.53.53/dns-query`
-
-**DNS-over-HTTPS (HTTP/3):** `h3://dns.alidns.com/dns-query`
-
-**DNS-over-QUIC:** `quic://dns.alidns.com` **&** `doq://dns.alidns.com`
-
-## New Data Provider: `adblock_set`
-
-The parser supports the following common DNS-related rule formats:
-
-- `||example.com^`: Subdomain match.
-- `example.com`: Exact match.
-- `|example.com|`: Exact match.
-- `/regexp/`: Regular expression match.
-- `*keyword*`: Keyword match.
-- `@@`: Prefix for whitelisting rules.
-- mosdns rules: `domain:`, `full:`, `keyword:`, `regexp:`
-
-You can now use the new provider in your `config.yaml`:
-
-```yaml
-plugins:
-  - tag: "ad_rules"
-    type: adblock_set
-    args:
-      files:
-        - "./adguard_dns.txt"
-        - "./easylist.txt"
-
-  - tag: "query_is_ad"
-    type: query_matcher
-    args:
-      domain:
-        - "provider:ad_rules"
+```bash
+docker compose up -d --build
 ```
 
---------------
+- DNS：`53/udp` + `53/tcp`
+- 统计面板：http://宿主机:8080（中文，对标 LuCI 统计页：总览/排行/即时搜索的查询日志/点击看详情）
+- 原始统计 API（按需映射 9091）：`curl http://宿主机:9091/plugins/stats_collector/api/v1/stats`
 
-## How to build
+GHCR 已有构建好的镜像：`ghcr.io/580132/mosdns:5`
 
-- Enter in your openwrt dir
+## 常用环境变量
 
-- Openwrt official SnapShots
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `LISTEN_ADDR` / `LISTEN_PORT` | `0.0.0.0` / `53` | DNS 监听 |
+| `API_LISTEN` | `0.0.0.0:9091` | stats_api 端口 |
+| `LOG_LEVEL` / `LOG_FILE` | `info` / 空 | 空表示走 stderr（`docker logs`） |
+| `GEO_AUTO_UPDATE` | `1` | geo 数据有更新就下载 |
+| `GEOIP_TYPE` | `geoip-only-cn-private` | 精简版 geoip |
+| `GITHUB_PROXY` | 空 | 如 `https://gh-proxy.com/` |
+| `STATS_UI_PORT` | `8080` | 统计面板端口，置空关闭 |
+| `ADBLOCK` / `AD_SOURCES` | `0` / 空 | 广告拦截开关与订阅，见下 |
+| `AUTO_UPDATE` / `UPDATE_CHECK_INTERVAL` | `1` / `86400` | 后台热更新开关与周期（秒），`0` 关闭循环 |
 
-  * requires golang 1.25.x or latest version
-  ```shell
-  rm -rf feeds/packages/lang/golang
-  git clone https://github.com/sbwml/packages_lang_golang -b 26.x feeds/packages/lang/golang
-  ```
+## 广告拦截
 
-  ```shell
-  # remove v2ray-geodata package from feeds
-  rm -rf feeds/packages/net/v2ray-geodata
+```yaml
+environment:
+  ADBLOCK: "1"
+  AD_SOURCES: "geosite.dat https://anti-ad.net/easylist.txt file:///etc/mosdns/rule/my-ads.txt"
+```
 
-  git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
-  git clone https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
-  make menuconfig # choose LUCI -> Applications -> luci-app-mosdns
-  make package/mosdns/luci-app-mosdns/compile V=s
-  ```
+源支持 `geosite.dat`（本地解出广告分类）、`file://`（挂载本地规则）、`https://`（下载，`raw.githubusercontent.com` 自动套代理）。更新不断 DNS（文件监听热重载），手动触发：`docker exec mosdns update-data`（geo+广告一起刷）。
 
-- Non-Openwrt official source
+## 自定义配置
 
-  ```shell
-  # drop mosdns and v2ray-geodata packages that come with the source
-  find ./ | grep Makefile | grep v2ray-geodata | xargs rm -f
-  find ./ | grep Makefile | grep mosdns | xargs rm -f
+挂载自己的 `config.yaml` 覆盖默认：
 
-  git clone https://github.com/sbwml/luci-app-mosdns -b v5 package/mosdns
-  git clone https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
-  make menuconfig # choose LUCI -> Applications -> luci-app-mosdns
-  make package/mosdns/luci-app-mosdns/compile V=s
-  ```
+```yaml
+volumes:
+  - ./my-config.yaml:/etc/mosdns/config.yaml:ro
+```
 
---------------
+监听/日志等 env 覆盖仍会对自定义文件生效，设 `APPLY_ENV_CONFIG=0` 可关。
 
-## How to install prebuilt packages
+## 版本锁定
 
-- Login OpenWrt terminal (SSH)
+```bash
+docker build --build-arg MOSDNS_VERSION=5.3.4 --build-arg MOSDNS_RELEASE=14 \
+  --build-arg PACKAGING_REF=v5 --build-arg GEO2TXT_VERSION=1.0.0 -t mosdns .
+```
 
-- Install `curl` package
-  ```shell
-  # for opkg package manager (24.10)
-  opkg update
-  opkg install curl
-  
-  # for apk package manager (25.12 or latest)
-  apk update
-  apk add curl
-  ```
-
-- Execute install script (Multi-architecture support)
-  ```shell
-  sh -c "$(curl -ksS https://raw.githubusercontent.com/sbwml/luci-app-mosdns/v5/install.sh)"
-  ```
-
-  install via ghproxy:
-  ```shell
-  sh -c "$(curl -ksS https://raw.githubusercontent.com/sbwml/luci-app-mosdns/v5/install.sh)" _ gh_proxy="https://gh-proxy.com"
-  ```
-
---------------
-
-![1](https://github.com/user-attachments/assets/f92847c9-4512-4969-afdc-2d83ddf3a758)
+`PACKAGING_REF` 可取分支、tag；CI 默认跟 `v5`。
