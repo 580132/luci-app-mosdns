@@ -5,145 +5,384 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>mosdns 统计</title>
 <style>
-  :root { color-scheme: light dark; }
-  * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; padding: 16px; max-width: 1200px; margin-inline: auto; }
-  h1 { font-size: 1.4rem; margin: 0 0 4px; }
-  h2 { font-size: 1.05rem; margin: 24px 0 8px; border-bottom: 1px solid #8884; padding-bottom: 4px; }
-  .muted { opacity: .65; font-size: .85rem; }
-  #err { display: none; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 6px; padding: 8px 12px; margin: 12px 0; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
-  .card { border: 1px solid #8884; border-radius: 8px; padding: 10px 12px; }
-  .card .v { font-size: 1.5rem; font-weight: 650; }
-  .card .k { font-size: .8rem; opacity: .7; }
-  .card .s { font-size: .75rem; opacity: .6; }
-  .live { color: #1a7f37; font-weight: 600; }
-  #history { display: flex; align-items: flex-end; gap: 2px; height: 90px; margin-top: 8px; }
-  #history .bar { flex: 1; min-width: 3px; background: #0969da; border-radius: 2px 2px 0 0; opacity: .8; }
-  #history .bar.blocked { background: #cf222e; }
-  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #8883; }
-  th { opacity: .7; font-weight: 600; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  #logs tbody tr { cursor: pointer; }
-  #logs tbody tr:hover { background: #8882; }
-  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .75rem; }
-  .pill.ok { background: #dafbe1; color: #1a7f37; }
-  .pill.block { background: #ffebe9; color: #cf222e; }
-  .pill.cache { background: #ddf4ff; color: #0969da; }
-  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
-  input, select, button { font: inherit; padding: 5px 10px; border: 1px solid #8886; border-radius: 6px; background: inherit; color: inherit; }
-  button { cursor: pointer; }
-  button:hover { filter: brightness(.94); }
-  button.danger { border-color: #cf222e; color: #cf222e; }
-  .pager { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
-  .domain { word-break: break-all; }
-  .mono { font-family: ui-monospace, Consolas, monospace; font-size: .85em; }
-  /* detail modal */
-  #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; align-items: flex-start; justify-content: center; padding: 8vh 12px 12px; }
-  #overlay.open { display: flex; }
-  #dialog { background: Canvas; color: CanvasText; border: 1px solid #8885; border-radius: 10px; max-width: 640px; width: 100%; max-height: 84vh; overflow-y: auto; padding: 16px 18px; }
-  #dialog h3 { margin: 0 0 10px; font-size: 1.1rem; }
-  .d-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-  .d-title { font-size: 1.05rem; font-weight: 650; word-break: break-all; }
-  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 10px; }
-  .meta .item { border: 1px solid #8883; border-radius: 6px; padding: 6px 10px; }
-  .meta .k { font-size: .75rem; opacity: .65; }
-  .meta .v { word-break: break-all; }
-  .ans { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #8882; }
-  .ans:last-child { border-bottom: none; }
-  .ans .data { flex: 1; word-break: break-all; }
-  .qtype { display: inline-block; padding: 0 7px; border-radius: 5px; background: #8883; font-size: .75rem; }
-  .d-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
-  footer { margin-top: 28px; }
+/* ---------- 主题变量 ---------- */
+:root {
+  color-scheme: light dark;
+  --bg:#f6f8fa; --panel:#ffffff; --panel-2:#fbfcfd; --border:#d8dee4;
+  --text:#1f2328; --muted:#636c76; --faint:#8c959f;
+  --blue:#0969da; --blue-soft:#ddf4ff; --green:#1a7f37; --green-soft:#dafbe1;
+  --red:#cf222e; --red-soft:#ffebe9; --amber:#9a6700; --amber-soft:#fff8c5;
+  --shadow:0 1px 2px rgba(31,35,40,.06), 0 4px 12px rgba(31,35,40,.05);
+  --radius:12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#0d1117; --panel:#151b23; --panel-2:#1c232c; --border:#30363d;
+    --text:#e6edf3; --muted:#9198a1; --faint:#6e7681;
+    --blue:#4493f8; --blue-soft:#121d2f; --green:#3fb950; --green-soft:#0f2417;
+    --red:#f85149; --red-soft:#2d1214; --amber:#d29922; --amber-soft:#2b2411;
+    --shadow:0 1px 2px rgba(1,4,9,.4), 0 4px 14px rgba(1,4,9,.3);
+  }
+}
+* { box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  margin:0; padding:20px 18px 40px;
+  background:var(--bg); color:var(--text);
+  font:14px/1.55 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap { max-width:1240px; margin:0 auto; }
+.mono { font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size:.86em; }
+.muted { color:var(--muted); }
+.faint { color:var(--faint); }
+.num { text-align:right; font-variant-numeric:tabular-nums; }
+code { font-family:ui-monospace,Consolas,monospace; font-size:.85em; background:var(--panel-2);
+  border:1px solid var(--border); border-radius:5px; padding:1px 5px; }
+
+/* ---------- 头部 ---------- */
+header { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; margin-bottom:18px; }
+h1 { font-size:1.3rem; margin:0; letter-spacing:.2px; }
+h1 .dot { color:var(--blue); }
+.status { display:flex; align-items:center; gap:7px; margin-left:auto; font-size:.82rem; color:var(--muted); }
+.led { width:8px; height:8px; border-radius:50%; background:var(--faint); flex:none; }
+.led.ok { background:var(--green); box-shadow:0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); animation:pulse 2s ease-in-out infinite; }
+.led.bad { background:var(--red); box-shadow:0 0 0 3px color-mix(in srgb, var(--red) 22%, transparent); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+
+h2 { font-size:.82rem; font-weight:650; text-transform:uppercase; letter-spacing:.6px;
+  color:var(--muted); margin:0 0 10px; }
+
+/* ---------- 面板 ---------- */
+.panel { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:16px; margin-bottom:16px; }
+.panel-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.panel-head h2 { margin:0; }
+.panel-head .spacer { margin-left:auto; }
+
+/* ---------- 指标卡 ---------- */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin-bottom:16px; }
+.card { position:relative; background:var(--panel); border:1px solid var(--border);
+  border-radius:var(--radius); box-shadow:var(--shadow); padding:14px 16px 13px; overflow:hidden; }
+.card::before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--accent,var(--blue)); }
+.card .k { font-size:.78rem; color:var(--muted); display:flex; align-items:center; gap:6px; }
+.card .v { font-size:1.85rem; font-weight:660; line-height:1.15; margin:6px 0 2px;
+  letter-spacing:-.4px; font-variant-numeric:tabular-nums; }
+.card .v .u { font-size:.9rem; font-weight:500; color:var(--muted); margin-left:3px; }
+.card .s { font-size:.76rem; color:var(--faint); display:flex; align-items:center; gap:6px; }
+.meter { height:4px; border-radius:99px; background:var(--border); margin-top:10px; overflow:hidden; }
+.meter i { display:block; height:100%; border-radius:99px; background:var(--accent,var(--blue));
+  transition:width .45s cubic-bezier(.4,0,.2,1); }
+
+/* ---------- 图表 ---------- */
+.chart { display:flex; align-items:flex-end; gap:3px; height:132px; padding-top:6px; }
+.chart .col { flex:1; min-width:0; display:flex; flex-direction:column; justify-content:flex-end;
+  height:100%; border-radius:4px 4px 0 0; position:relative; }
+.chart .seg { width:100%; transition:height .4s cubic-bezier(.4,0,.2,1); }
+.chart .seg.s-block { background:var(--red); border-radius:0 0 4px 4px; }
+.chart .seg.s-cache { background:color-mix(in srgb, var(--blue) 55%, transparent); }
+.chart .seg.s-clean { background:var(--blue); border-radius:4px 4px 0 0; }
+.chart .col:hover { outline:1px solid var(--border); background:var(--panel-2); }
+.chart-empty { height:132px; display:grid; place-items:center; color:var(--faint);
+  border:1px dashed var(--border); border-radius:8px; }
+.axis { display:flex; gap:3px; margin-top:6px; }
+.axis span { flex:1; min-width:0; text-align:center; font-size:.68rem; color:var(--faint);
+  white-space:nowrap; overflow:hidden; }
+.legend { display:flex; gap:14px; font-size:.75rem; color:var(--muted); }
+.legend i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+
+/* ---------- 排行 ---------- */
+.ranks { display:grid; grid-template-columns:repeat(auto-fit,minmax(290px,1fr)); gap:16px; margin-bottom:16px; }
+.rank { list-style:none; margin:0; padding:0; }
+.rank li { position:relative; display:flex; align-items:center; gap:10px; padding:6px 8px;
+  border-radius:7px; font-size:.83rem; }
+.rank li + li { margin-top:1px; }
+.rank li:hover { background:var(--panel-2); }
+.rank .fill { position:absolute; inset:0 auto 0 0; background:var(--tint,var(--blue-soft));
+  border-radius:7px; z-index:0; }
+.rank > li > * { position:relative; z-index:1; }
+.rank .no { width:18px; text-align:right; color:var(--faint); font-size:.75rem; font-variant-numeric:tabular-nums; }
+.rank .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rank .ct { color:var(--muted); font-variant-numeric:tabular-nums; font-size:.78rem; }
+.empty { color:var(--faint); font-size:.83rem; padding:10px 2px; }
+
+/* ---------- 控件 ---------- */
+input,select,button { font:inherit; color:inherit; }
+.field { display:flex; align-items:center; gap:7px; background:var(--panel); border:1px solid var(--border);
+  border-radius:8px; padding:4px 6px 4px 11px; }
+.field:focus-within { border-color:var(--blue); box-shadow:0 0 0 3px color-mix(in srgb, var(--blue) 18%, transparent); }
+.field input { border:0; background:none; outline:0; padding:5px 0; width:250px; }
+.field svg { width:15px; height:15px; flex:none; color:var(--faint); }
+select,button { background:var(--panel); border:1px solid var(--border); border-radius:8px;
+  padding:7px 13px; cursor:pointer; }
+button:hover:not(:disabled),select:hover { border-color:var(--muted); }
+button:disabled { opacity:.42; cursor:default; }
+button.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
+button.primary:hover { filter:brightness(1.08); }
+button.danger { color:var(--red); border-color:color-mix(in srgb, var(--red) 45%, var(--border)); }
+button.danger:hover { background:var(--red-soft); }
+.switch { display:inline-flex; align-items:center; gap:7px; font-size:.82rem; color:var(--muted); cursor:pointer; user-select:none; }
+.switch input { accent-color:var(--blue); width:15px; height:15px; }
+
+/* ---------- 告警 ---------- */
+#err { display:none; background:var(--red-soft); border:1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  color:var(--red); border-radius:var(--radius); padding:11px 14px; margin-bottom:16px; font-size:.85rem; }
+
+/* ---------- 表格 ---------- */
+.tablewrap { max-height:520px; overflow:auto; border:1px solid var(--border); border-radius:10px; }
+table { width:100%; border-collapse:separate; border-spacing:0; font-size:.83rem; }
+th,td { text-align:left; padding:8px 12px; white-space:nowrap; }
+th { position:sticky; top:0; z-index:2; background:var(--panel-2); color:var(--muted);
+  font-weight:600; font-size:.75rem; border-bottom:1px solid var(--border); }
+tbody tr { cursor:pointer; }
+tbody tr:hover td { background:var(--panel-2); }
+td { border-bottom:1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+tbody tr:last-child td { border-bottom:0; }
+td.wrap { white-space:normal; word-break:break-all; max-width:280px; }
+td.l { color:var(--muted); font-size:.94em; }
+.lat-ok { color:var(--green); } .lat-mid { color:var(--amber); } .lat-bad { color:var(--red); }
+.pill { display:inline-block; padding:2px 9px; border-radius:99px; font-size:.72rem; font-weight:550; }
+.pill.ok { background:var(--green-soft); color:var(--green); }
+.pill.block { background:var(--red-soft); color:var(--red); }
+.pill.cache { background:var(--blue-soft); color:var(--blue); }
+.qtype { display:inline-block; min-width:26px; text-align:center; padding:1px 6px; border-radius:5px;
+  background:var(--panel-2); border:1px solid var(--border); font-size:.72rem; color:var(--muted); }
+
+.pager { display:flex; gap:10px; align-items:center; margin-top:12px; font-size:.83rem; color:var(--muted); }
+.pager .spacer { margin-left:auto; }
+
+/* ---------- 详情弹窗 ---------- */
+#overlay { display:none; position:fixed; inset:0; background:rgba(1,4,9,.55); z-index:60;
+  align-items:center; justify-content:center; padding:18px; backdrop-filter:blur(2px); }
+#overlay.open { display:flex; }
+#dialog { background:var(--panel); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow);
+  width:100%; max-width:660px; max-height:86vh; overflow:auto; animation:rise .18s ease-out; }
+@keyframes rise { from { transform:translateY(10px); opacity:0 } }
+.d-head { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-start; justify-content:space-between;
+  padding:16px 18px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--panel); z-index:2; }
+.d-title { font-size:1rem; font-weight:650; word-break:break-all; display:flex; align-items:center; gap:8px; }
+.d-body { padding:16px 18px; }
+.d-meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin-bottom:16px; }
+.d-meta .item { background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:8px 11px; }
+.d-meta .k { font-size:.72rem; color:var(--muted); margin-bottom:3px; }
+.d-meta .v { word-break:break-all; }
+.ans { display:flex; align-items:center; gap:10px; padding:7px 2px; font-size:.83rem; }
+.ans + .ans { border-top:1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+.ans .data { flex:1; min-width:0; word-break:break-all; }
+.d-foot { display:flex; gap:10px; justify-content:flex-end; padding:13px 18px;
+  border-top:1px solid var(--border); position:sticky; bottom:0; background:var(--panel); }
+.sub { font-size:.75rem; font-weight:600; color:var(--muted); text-transform:uppercase;
+  letter-spacing:.5px; margin:0 0 8px; display:flex; align-items:center; gap:8px; }
+.sub .ct { text-transform:none; letter-spacing:0; color:var(--faint); font-weight:500; }
+
+footer { margin-top:26px; font-size:.78rem; color:var(--faint); display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; }
+details summary { cursor:pointer; }
+details[open] summary { margin-bottom:6px; }
+
+@media (max-width:820px) {
+  body { padding:14px 12px 32px; }
+  .col-hide { display:none; }
+  .field input { width:130px; }
+  .chart { height:104px; }
+  .card .v { font-size:1.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation:none !important; transition:none !important; }
+}
 </style>
 </head>
 <body>
-<h1>mosdns 统计</h1>
-<div class="muted">LuCI 统计页面的独立替代版，数据直接来自补丁版 <code>stats_api</code> 插件。点击日志行可查看详情。</div>
-<div id="err"></div>
+<div class="wrap">
 
-<div class="toolbar">
-  <label class="muted" for="apiBase">API 地址</label>
-  <input id="apiBase" size="52" spellcheck="false">
-  <button id="saveApi" type="button">保存</button>
-  <span class="muted" id="updated"></span>
+  <header>
+    <h1><span class="dot">●</span> mosdns 统计</h1>
+    <div class="status">
+      <span class="led" id="led"></span>
+      <span id="conn">连接中…</span>
+    </div>
+  </header>
+
+  <div id="err"></div>
+
+  <!-- 总览 -->
+  <div class="cards">
+    <div class="card" style="--accent:var(--blue)">
+      <div class="k">总查询</div>
+      <div class="v" id="mTotal">–</div>
+      <div class="s" id="mQps">–</div>
+    </div>
+    <div class="card" style="--accent:var(--red)">
+      <div class="k">已拦截</div>
+      <div class="v" id="mBlocked">–</div>
+      <div class="s" id="mBlockedPct">–</div>
+      <div class="meter"><i id="barBlocked" style="width:0"></i></div>
+    </div>
+    <div class="card" style="--accent:var(--green)">
+      <div class="k">缓存命中</div>
+      <div class="v" id="mCached">–</div>
+      <div class="s" id="mCachedPct">–</div>
+      <div class="meter"><i id="barCached" style="width:0"></i></div>
+    </div>
+    <div class="card" style="--accent:var(--amber)">
+      <div class="k">平均延迟</div>
+      <div class="v" id="mLatency">–</div>
+      <div class="s">全部查询的处理耗时</div>
+    </div>
+  </div>
+
+  <!-- 趋势 -->
+  <div class="panel">
+    <div class="panel-head">
+      <h2>24 小时趋势</h2>
+      <div class="spacer"></div>
+      <div class="legend">
+        <span><i style="background:var(--blue)"></i>正常</span>
+        <span><i style="background:color-mix(in srgb,var(--blue) 55%,transparent)"></i>缓存</span>
+        <span><i style="background:var(--red)"></i>拦截</span>
+      </div>
+    </div>
+    <div id="history"></div>
+    <div class="axis" id="historyAxis"></div>
+  </div>
+
+  <!-- 排行 -->
+  <div class="ranks">
+    <div class="panel">
+      <div class="panel-head"><h2>热门域名</h2></div>
+      <ul class="rank" id="topDomains"></ul>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>拦截排行</h2></div>
+      <ul class="rank" id="topBlocked"></ul>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>活跃客户端</h2></div>
+      <ul class="rank" id="topClients"></ul>
+    </div>
+  </div>
+
+  <!-- 查询日志 -->
+  <div class="panel">
+    <div class="panel-head">
+      <h2>查询日志</h2>
+      <div class="spacer"></div>
+      <label class="switch"><input type="checkbox" id="auto" checked>自动刷新</label>
+      <button id="clear" type="button" class="danger">清空</button>
+    </div>
+
+    <div class="toolbar" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <div class="field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+        </svg>
+        <input id="q" placeholder="搜索域名 / 客户端 IP" spellcheck="false" autocomplete="off">
+      </div>
+      <select id="f" aria-label="筛选">
+        <option value="all">全部</option>
+        <option value="blocked">仅拦截</option>
+        <option value="cached">仅缓存</option>
+      </select>
+      <span class="faint" style="font-size:.8rem">点击任意行查看详情</span>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:150px">时间</th>
+            <th class="col-hide" style="width:130px">客户端</th>
+            <th>域名</th>
+            <th style="width:56px">类型</th>
+            <th style="width:92px">状态</th>
+            <th class="num" style="width:74px">耗时</th>
+            <th class="col-hide" style="width:190px">上游 / 规则</th>
+          </tr>
+        </thead>
+        <tbody id="logsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="pager">
+      <button id="prev" type="button">‹ 上一页</button>
+      <button id="next" type="button">下一页 ›</button>
+      <span class="spacer"></span>
+      <span id="pageInfo"></span>
+    </div>
+  </div>
+
+  <footer>
+    <details>
+      <summary>接口与设置</summary>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px">
+        <div class="field">
+          <input id="apiBase" spellcheck="false" autocomplete="off" style="width:320px">
+        </div>
+        <button id="saveApi" type="button" class="primary">保存</button>
+        <span id="updated"></span>
+      </div>
+      <p style="margin:10px 0 0">
+        接口：<code>GET /api/v1/stats|top|history|logs</code>、<code>POST /api/v1/logs/clear</code>；
+        等价命令 <code>curl http://主机:9091/plugins/stats_collector/api/v1/stats</code>。
+        本页为 LuCI 统计页的独立替代版，数据直接来自补丁版 <code>stats_api</code> 插件。
+      </p>
+    </details>
+  </footer>
 </div>
 
-<h2>总览</h2>
-<div class="cards">
-  <div class="card"><div class="v" id="mTotal">–</div><div class="k">总查询</div><div class="s" id="mQps"><span class="live">● 实时</span> – QPS</div></div>
-  <div class="card"><div class="v" id="mBlocked">–</div><div class="k">已拦截</div><div class="s" id="mBlockedPct">–</div></div>
-  <div class="card"><div class="v" id="mCached">–</div><div class="k">缓存命中</div><div class="s" id="mCachedPct">–</div></div>
-  <div class="card"><div class="v" id="mLatency">–</div><div class="k">平均延迟</div><div class="s">毫秒</div></div>
-</div>
-
-<h2>按小时统计</h2>
-<div id="history"></div>
-<div class="muted" id="historyLegend"></div>
-
-<div class="cols">
-  <div><h2>热门域名</h2><table><thead><tr><th>域名</th><th class="num">次数</th></tr></thead><tbody id="topDomains"></tbody></table></div>
-  <div><h2>拦截排行</h2><table><thead><tr><th>域名</th><th class="num">次数</th></tr></thead><tbody id="topBlocked"></tbody></table></div>
-  <div><h2>活跃客户端</h2><table><thead><tr><th>客户端 IP</th><th class="num">次数</th></tr></thead><tbody id="topClients"></tbody></table></div>
-</div>
-
-<h2>查询日志</h2>
-<div class="toolbar">
-  <input id="q" placeholder="搜索域名 / 客户端 IP（即时搜索）" size="32">
-  <select id="f"><option value="all">全部</option><option value="blocked">仅拦截</option><option value="cached">仅缓存</option></select>
-  <label class="muted"><input type="checkbox" id="auto" checked> 自动刷新</label>
-  <button id="clear" type="button" class="danger">清空日志</button>
-</div>
-<table id="logs">
-  <thead><tr><th>时间</th><th>客户端</th><th>域名</th><th>类型</th><th>状态</th><th class="num">耗时</th><th>上游 / 规则</th></tr></thead>
-  <tbody id="logsBody"></tbody>
-</table>
-<div class="pager">
-  <button id="prev" type="button">‹ 上一页</button>
-  <span class="muted" id="pageInfo"></span>
-  <button id="next" type="button">下一页 ›</button>
-</div>
-
+<!-- 详情弹窗 -->
 <div id="overlay">
   <div id="dialog" role="dialog" aria-modal="true" aria-labelledby="dTitle">
-    <h3 id="dTitle">查询日志详情</h3>
     <div class="d-head">
-      <span class="d-title"><span class="mono" id="dDomain">-</span> <span class="qtype" id="dQtype">A</span></span>
-      <span><span id="dStatus"></span> <span class="mono muted" id="dElapsed"></span></span>
+      <div class="d-title"><span class="mono" id="dDomain">-</span><span class="qtype" id="dQtype">A</span></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="dStatus"></span>
+        <span class="mono muted" id="dElapsed"></span>
+      </div>
     </div>
-    <div class="meta">
-      <div class="item"><div class="k">客户端</div><div class="v mono" id="dClient">-</div></div>
-      <div class="item"><div class="k">时间</div><div class="v mono" id="dTime">-</div></div>
-      <div class="item"><div class="k">上游</div><div class="v mono" id="dUpstream">-</div></div>
-      <div class="item"><div class="k">命中规则</div><div class="v mono" id="dRule">-</div></div>
+    <div class="d-body">
+      <div class="d-meta">
+        <div class="item"><div class="k">客户端</div><div class="v mono" id="dClient">-</div></div>
+        <div class="item"><div class="k">时间</div><div class="v mono" id="dTime">-</div></div>
+        <div class="item"><div class="k">上游</div><div class="v mono" id="dUpstream">-</div></div>
+        <div class="item"><div class="k">命中规则</div><div class="v mono" id="dRule">-</div></div>
+      </div>
+      <div class="sub">解析结果 <span class="ct" id="dAnsCount"></span></div>
+      <div id="dAnswers"></div>
     </div>
-    <h3 style="font-size:.95rem">解析结果 <span class="muted" id="dAnsCount"></span></h3>
-    <div id="dAnswers"></div>
-    <div class="d-actions"><button id="dClose" type="button">关闭</button></div>
+    <div class="d-foot">
+      <button id="dCopy" type="button">复制域名</button>
+      <button id="dClose" type="button" class="primary">关闭</button>
+    </div>
   </div>
 </div>
 
-<footer class="muted">接口：API 地址下 <code>GET /api/v1/stats|top|history|logs</code>，<code>POST /api/v1/logs/clear</code>。等价命令：<code>curl http://主机:9091/plugins/stats_collector/api/v1/stats</code></footer>
-
 <script>
 'use strict';
-const PAGE_SIZE = 20; // 与 LuCI statistics.js 一致
+const PAGE_SIZE = 20;               // 与 LuCI statistics.js 保持一致
+const HISTORY_POINTS = 24;
+const REFRESH_MS = 5000;
 const $ = (id) => document.getElementById(id);
-const errBox = $('err');
 
 const defaultBase = () => 'http://' + location.hostname + ':9091/plugins/stats_collector';
 let apiBase = localStorage.getItem('mosdns_api_base') || defaultBase();
 $('apiBase').value = apiBase;
 
-let page = 0, logTotal = 0, lastItems = [];
-let searchTimer = null;
+let page = 0, logTotal = 0, lastItems = [], searchTimer = null, currentDomain = '';
 
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const fmt = (n) => (n || 0).toLocaleString();
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+
+function setConn(state, text) {
+  $('led').className = 'led ' + state;
+  $('conn').textContent = text;
+}
 function showErr(msg) {
-  if (!msg) { errBox.style.display = 'none'; errBox.textContent = ''; return; }
-  errBox.style.display = 'block';
-  errBox.textContent = 'API 不可达：' + msg + '——请确认 mosdns 正在运行且 stats_api 插件已启用、API 端口可访问。';
+  const box = $('err');
+  if (!msg) { box.style.display = 'none'; box.textContent = ''; return; }
+  box.style.display = 'block';
+  box.textContent = 'API 不可达：' + msg + '——请确认 mosdns 正在运行、stats_api 插件已启用，且 API 端口可访问。';
 }
 
 async function get(path, opts) {
@@ -152,85 +391,133 @@ async function get(path, opts) {
   return r.json();
 }
 
-const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmtNum = (n) => (n || 0).toLocaleString();
-
 function statusPill(e) {
   if (e.is_blocked) return '<span class="pill block">已拦截</span>';
   if (e.is_cached) return '<span class="pill cache">缓存命中</span>';
   return '<span class="pill ok">' + esc(e.status || 'NOERROR') + '</span>';
 }
+function latClass(ms) {
+  const v = parseFloat(ms) || 0;
+  return v < 30 ? 'lat-ok' : v < 100 ? 'lat-mid' : 'lat-bad';
+}
 
+/* ---------------- 总览 ---------------- */
 async function refreshStats() {
   const s = await get('/api/v1/stats');
-  $('mTotal').textContent = fmtNum(s.total_queries);
-  $('mBlocked').textContent = fmtNum(s.blocked_queries);
-  $('mBlockedPct').textContent = '拦截率 ' + (s.blocked_percentage || 0) + '%';
-  $('mCached').textContent = fmtNum(s.cached_queries);
-  $('mCachedPct').textContent = '命中率 ' + (s.cached_percentage || 0) + '%';
-  $('mLatency').textContent = (s.avg_latency_ms || 0) + ' 毫秒';
-  $('mQps').innerHTML = '<span class="live">● 实时</span> ' + (s.qps || 0) + ' QPS';
+  const total = s.total_queries || 0;
+  const bp = s.blocked_percentage || 0;
+  const cp = s.cached_percentage || 0;
+  $('mTotal').textContent = fmt(total);
+  $('mQps').innerHTML = '<span class="pill ok">● 实时</span> ' + (s.qps || 0) + ' QPS';
+  $('mBlocked').textContent = fmt(s.blocked_queries);
+  $('mBlockedPct').textContent = bp + '% · ' + fmt(s.blocked_queries) + ' 次';
+  $('barBlocked').style.width = clamp(bp, 0, 100) + '%';
+  $('mCached').textContent = fmt(s.cached_queries);
+  $('mCachedPct').textContent = cp + '% · ' + fmt(s.cached_queries) + ' 次';
+  $('barCached').style.width = clamp(cp, 0, 100) + '%';
+  $('mLatency').innerHTML = (s.avg_latency_ms || 0) + '<span class="u">ms</span>';
 }
 
+/* ---------------- 趋势（堆叠柱） ---------------- */
+async function refreshHistory() {
+  const h = await get('/api/v1/history?points=' + HISTORY_POINTS);
+  const pts = h.points || [];
+  const box = $('history'), axis = $('historyAxis');
+  if (!pts.length) {
+    box.innerHTML = '<div class="chart-empty">暂无数据，首次查询后开始记录</div>';
+    axis.innerHTML = '';
+    return;
+  }
+  const max = Math.max(1, ...pts.map((p) => p.total));
+  box.innerHTML = pts.map((p) => {
+    const hgt = clamp((p.total / max) * 100, 1.5, 100);
+    // blocked 与 cached 可能与 total 有重叠，夹紧避免溢出柱体
+    const bl = clamp(p.blocked / max * 100, 0, hgt);
+    const ca = clamp(p.cached / max * 100, 0, hgt - bl);
+    const cl = Math.max(0, hgt - bl - ca);
+    const tip = esc(p.time) + '：总计 ' + fmt(p.total) + '，拦截 ' + fmt(p.blocked) + '，缓存 ' + fmt(p.cached);
+    return '<div class="col" title="' + tip + '">'
+      + (cl > 0 ? '<div class="seg s-clean" style="height:' + cl + '%"></div>' : '')
+      + (ca > 0 ? '<div class="seg s-cache" style="height:' + ca + '%"></div>' : '')
+      + (bl > 0 ? '<div class="seg s-block" style="height:' + bl + '%"></div>' : '')
+      + '</div>';
+  }).join('');
+  // X 轴：均匀抽稀，避免小时标签互相挤压
+  const step = Math.ceil(pts.length / 6);
+  axis.innerHTML = pts.map((p, i) => {
+    const hh = String(p.time || '').slice(11, 13);
+    return '<span>' + ((i % step === 0 && hh) ? hh + '时' : '') + '</span>';
+  }).join('');
+}
+
+/* ---------------- 排行（占比条） ---------------- */
+function renderRank(listId, items, key, tint) {
+  const ul = $(listId);
+  if (!items || !items.length) {
+    ul.innerHTML = '<li class="empty">暂无数据</li>';
+    return;
+  }
+  const max = Math.max(1, ...items.map((it) => it.count));
+  ul.innerHTML = items.map((it, i) => {
+    const name = it[key] || '';
+    const w = clamp((it.count / max) * 100, 4, 100);
+    return '<li><span class="fill" style="width:' + w + '%;--tint:' + tint + '"></span>'
+      + '<span class="no">' + (i + 1) + '</span>'
+      + '<span class="nm mono" title="' + esc(name) + '">' + esc(name) + '</span>'
+      + '<span class="ct">' + fmt(it.count) + '</span></li>';
+  }).join('');
+}
 async function refreshTop() {
   const t = await get('/api/v1/top?limit=10');
-  const rows = (arr, key) => (arr || []).map((it) =>
-    '<tr><td class="domain">' + esc(it[key]) + '</td><td class="num">' + fmtNum(it.count) + '</td></tr>').join('')
-    || '<tr><td colspan="2" class="muted">暂无数据</td></tr>';
-  $('topDomains').innerHTML = rows(t.top_domains, 'domain');
-  $('topBlocked').innerHTML = rows(t.top_blocked, 'domain');
-  $('topClients').innerHTML = rows(t.top_clients, 'client_ip');
+  renderRank('topDomains', t.top_domains, 'domain', 'var(--blue-soft)');
+  renderRank('topBlocked', t.top_blocked, 'domain', 'var(--red-soft)');
+  renderRank('topClients', t.top_clients, 'client_ip', 'var(--green-soft)');
 }
 
-async function refreshHistory() {
-  const h = await get('/api/v1/history?points=24');
-  const pts = h.points || [];
-  const max = Math.max(1, ...pts.map((p) => p.total));
-  $('history').innerHTML = pts.map((p) => {
-    const ht = Math.max(2, Math.round((p.total / max) * 88));
-    const title = esc(p.time) + ' 总计=' + p.total + ' 拦截=' + p.blocked + ' 缓存=' + p.cached;
-    const cls = p.blocked > 0 ? 'bar blocked' : 'bar';
-    return '<div class="' + cls + '" style="height:' + ht + 'px" title="' + title + '"></div>';
-  }).join('');
-  $('historyLegend').textContent = pts.length ? ('最早 ' + pts[0].time + ' → 最新 ' + pts[pts.length - 1].time) : '暂无数据';
-}
-
+/* ---------------- 查询日志 ---------------- */
 async function refreshLogs() {
   const search = $('q').value.trim(), filter = $('f').value;
-  const d = await get('/api/v1/logs?limit=' + PAGE_SIZE + '&offset=' + (page * PAGE_SIZE)
-    + '&search=' + encodeURIComponent(search) + '&filter=' + encodeURIComponent(filter));
+  const qs = '/api/v1/logs?limit=' + PAGE_SIZE + '&offset=' + (page * PAGE_SIZE)
+    + '&search=' + encodeURIComponent(search) + '&filter=' + encodeURIComponent(filter);
+  const d = await get(qs);
   logTotal = d.total || 0;
   lastItems = d.items || [];
   $('logsBody').innerHTML = lastItems.map((e, i) =>
-    '<tr data-idx="' + i + '" title="点击查看详情"><td>' + esc(e.timestamp) + '</td><td>' + esc(e.client_ip) + '</td>' +
-    '<td class="domain">' + esc(e.domain) + '</td><td>' + esc(e.qtype) + '</td>' +
-    '<td>' + statusPill(e) + '</td><td class="num">' + (e.elapsed_ms || 0) + '</td>' +
-    '<td class="muted">' + esc(e.upstream || e.rule || '') + '</td></tr>').join('')
-    || '<tr><td colspan="7" class="muted">没有匹配的日志</td></tr>';
+    '<tr data-idx="' + i + '">'
+    + '<td class="l mono">' + esc(e.timestamp) + '</td>'
+    + '<td class="l mono col-hide">' + esc(e.client_ip) + '</td>'
+    + '<td class="wrap mono">' + esc(e.domain) + '</td>'
+    + '<td><span class="qtype">' + esc(e.qtype || 'A') + '</span></td>'
+    + '<td>' + statusPill(e) + '</td>'
+    + '<td class="num mono ' + latClass(e.elapsed_ms) + '">' + (e.elapsed_ms || 0) + '</td>'
+    + '<td class="l col-hide mono">' + esc(e.upstream || e.rule || '') + '</td>'
+    + '</tr>').join('')
+    || '<tr><td colspan="7" class="empty">没有匹配的日志</td></tr>';
   const pages = Math.max(1, Math.ceil(logTotal / PAGE_SIZE));
-  $('pageInfo').textContent = '第 ' + (page + 1) + ' / ' + pages + ' 页 · 共 ' + logTotal + ' 条';
+  $('pageInfo').textContent = '第 ' + (page + 1) + ' / ' + pages + ' 页 · 共 ' + fmt(logTotal) + ' 条';
   $('prev').disabled = page <= 0;
   $('next').disabled = page >= pages - 1;
 }
 
-/* 详情弹窗（对标 LuCI showLogDetailsModal） */
+/* ---------------- 详情弹窗 ---------------- */
 function openDetail(item) {
   if (!item) return;
-  $('dDomain').textContent = item.domain || '-';
+  currentDomain = item.domain || '';
+  $('dDomain').textContent = currentDomain || '-';
   $('dQtype').textContent = item.qtype || 'A';
   $('dStatus').innerHTML = statusPill(item);
-  $('dElapsed').textContent = (item.elapsed_ms || 0) + ' 毫秒';
+  $('dElapsed').innerHTML = '<span class="' + latClass(item.elapsed_ms) + '">' + (item.elapsed_ms || 0) + ' ms</span>';
   $('dClient').textContent = item.client_ip || '-';
   $('dTime').textContent = item.timestamp || '-';
   $('dUpstream').textContent = item.upstream || '-';
   $('dRule').textContent = item.rule || '-';
   const answers = item.answers || [];
-  $('dAnsCount').textContent = '（' + answers.length + ' 条）';
-  $('dAnswers').innerHTML = answers.length ? answers.map((a) =>
-    '<div class="ans"><span class="qtype">' + esc(a.type || 'A') + '</span>' +
-    '<span class="data mono">' + esc(a.data) + '</span>' +
-    '<span class="muted mono">TTL ' + a.ttl + 's</span></div>').join('')
-    : '<div class="muted">未返回 DNS 解析记录。</div>';
+  $('dAnsCount').textContent = answers.length ? '（' + answers.length + ' 条）' : '';
+  $('dAnswers').innerHTML = answers.length
+    ? answers.map((a) => '<div class="ans"><span class="qtype">' + esc(a.type || 'A') + '</span>'
+        + '<span class="data mono">' + esc(a.data) + '</span>'
+        + '<span class="faint mono">TTL ' + a.ttl + 's</span></div>').join('')
+    : '<div class="empty">未返回 DNS 解析记录</div>';
   $('overlay').classList.add('open');
 }
 function closeDetail() { $('overlay').classList.remove('open'); }
@@ -238,14 +525,22 @@ function closeDetail() { $('overlay').classList.remove('open'); }
 async function refreshAll() {
   try {
     await Promise.all([refreshStats(), refreshTop(), refreshHistory(), refreshLogs()]);
-    $('updated').textContent = '更新于 ' + new Date().toLocaleTimeString();
+    setConn('ok', '已连接 · 更新于 ' + new Date().toLocaleTimeString('zh-CN', { hour12: false }));
     showErr(null);
-  } catch (e) { showErr(e.message); }
+  } catch (e) {
+    setConn('bad', '连接失败');
+    showErr(e.message);
+  }
 }
 
-$('saveApi').onclick = () => { apiBase = $('apiBase').value.trim().replace(/\/+$/, ''); localStorage.setItem('mosdns_api_base', apiBase); page = 0; refreshAll(); };
-/* 即时搜索：输入后 300ms 自动查询 */
-$('q').addEventListener('input', () => {
+/* ---------------- 事件 ---------------- */
+$('saveApi').onclick = () => {
+  apiBase = $('apiBase').value.trim().replace(/\/+$/, '');
+  localStorage.setItem('mosdns_api_base', apiBase);
+  page = 0;
+  refreshAll();
+};
+$('q').addEventListener('input', () => {           // 即时搜索，300ms 防抖
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => { page = 0; refreshLogs().catch((e) => showErr(e.message)); }, 300);
 });
@@ -255,19 +550,27 @@ $('next').onclick = () => { page++; refreshLogs().catch((e) => showErr(e.message
 $('clear').onclick = async () => {
   if (!confirm('确定要清空查询日志和排行统计吗？')) return;
   await get('/api/v1/logs/clear', { method: 'POST' });
-  page = 0; refreshAll();
+  page = 0;
+  refreshAll();
 };
-/* 点击行看详情（事件委托，rows 由 refreshLogs 重绘） */
-$('logsBody').addEventListener('click', (ev) => {
+$('logsBody').addEventListener('click', (ev) => {   // 事件委托，行会被整体重绘
   const tr = ev.target.closest('tr[data-idx]');
   if (tr) openDetail(lastItems[Number(tr.dataset.idx)]);
 });
+$('dCopy').onclick = async () => {
+  if (!currentDomain) return;
+  try {
+    await navigator.clipboard.writeText(currentDomain);
+    $('dCopy').textContent = '已复制';
+    setTimeout(() => ($('dCopy').textContent = '复制域名'), 1400);
+  } catch (_) { /* 剪贴板不可用时忽略 */ }
+};
 $('dClose').onclick = closeDetail;
 $('overlay').addEventListener('click', (ev) => { if (ev.target === $('overlay')) closeDetail(); });
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeDetail(); });
 
 refreshAll();
-setInterval(() => { if ($('auto').checked) refreshAll(); }, 5000);
+setInterval(() => { if ($('auto').checked) refreshAll(); }, REFRESH_MS);
 </script>
 </body>
 </html>
