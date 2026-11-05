@@ -2,6 +2,18 @@
 
 [MosDNS](https://github.com/IrineSistiana/mosdns) is a plug-in DNS forwarder. Users can splicing plug-ins as needed to customize their own DNS processing logic.
 
+## Fork: Custom DDNS DNS
+
+This fork adds a **Custom DDNS DNS** option under *Basic Setting*. When enabled, domains in the *DDNS Lists* are resolved through the dedicated *DDNS DNS server* instead of the China/Local DNS, while still using a forced 5-second TTL and bypassing the cache.
+
+UCI options:
+
+```uci
+option custom_ddns_dns '1'
+list ddns_dns 'tls://8.8.8.8'
+```
+
+
 ## DNS protocol standard
 
 **General DNS (UDP):** `119.29.29.29` **&** `udp://119.29.29.29:53`
