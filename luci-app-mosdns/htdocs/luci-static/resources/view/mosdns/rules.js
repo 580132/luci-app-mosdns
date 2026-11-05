@@ -48,6 +48,8 @@ return view.extend({
 				file: '/etc/mosdns/rule/ddnslist.txt',
 				desc: '<font color=\'red\'>'
 					+ _('Added domain names will always use \'Local DNS\' for resolution, with a forced TTL of 5 seconds, and results will not be cached (one domain per line, supports domain matching rules).')
+					+ ' '
+					+ _('When \'Custom DDNS DNS\' is enabled, the \'DDNS DNS server\' will be used instead.')
 					+ '</font>'
 			},
 			{

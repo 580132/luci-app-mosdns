@@ -321,6 +321,10 @@ msgstr "自定义国内 DNS"
 msgid "Custom Config"
 msgstr "自定义"
 
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:226
+msgid "Custom DDNS DNS"
+msgstr "自定义 DDNS DNS"
+
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:58
 msgid ""
 "Custom Hosts rewrite, for example: baidu.com 10.0.0.1 (one rule per line, "
@@ -335,6 +339,10 @@ msgstr "自选 IP"
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:238
 msgid "Custom Stream Media DNS"
 msgstr "自定义流媒体 DNS"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:231
+msgid "DDNS DNS server"
+msgstr "DDNS DNS 服务器"
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:47
 msgid "DDNS Lists"
@@ -1031,6 +1039,12 @@ msgstr "火山引擎公共 DNS（180.184.1.1）"
 msgid "TrafficRoute Public DNS (180.184.2.2)"
 msgstr "火山引擎公共 DNS（180.184.2.2）"
 
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:227
+msgid ""
+"Use a dedicated DNS server to resolve the domain names in the DDNS Lists "
+"instead of the China/Local DNS"
+msgstr "使用专用 DNS 服务器解析 DDNS 域名列表中的域名，而不使用国内/本地 DNS"
+
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:494
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:17
 msgid "Unable to save contents: %s"
@@ -1093,6 +1107,11 @@ msgid ""
 msgstr ""
 "使用自定义规则来源时，请使用 MosDNS 支持的规则类型（域名列表或 AdGuardHome 规"
 "则）"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:50
+msgid ""
+"When 'Custom DDNS DNS' is enabled, the 'DDNS DNS server' will be used instead."
+msgstr "启用 “自定义 DDNS DNS” 时，将改用 “DDNS DNS 服务器” 进行解析"
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:23
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/statistics.js:643

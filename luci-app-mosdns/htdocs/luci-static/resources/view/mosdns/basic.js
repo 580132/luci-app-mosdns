@@ -223,6 +223,23 @@ return view.extend({
 		o.default = '119.29.29.29';
 		o.depends('custom_local_dns', '1');
 
+		o = s.taboption('basic', form.Flag, 'custom_ddns_dns', _('Custom DDNS DNS'),
+			_('Use a dedicated DNS server to resolve the domain names in the DDNS Lists instead of the China/Local DNS'));
+		o.depends('configfile', '/var/etc/mosdns.json');
+		o.default = false;
+
+		o = s.taboption('basic', form.DynamicList, 'ddns_dns', _('DDNS DNS server'));
+		o.value('tls://1.1.1.1', _('CloudFlare Public DNS (1.1.1.1)'));
+		o.value('tls://1.0.0.1', _('CloudFlare Public DNS (1.0.0.1)'));
+		o.value('tls://8.8.8.8', _('Google Public DNS (8.8.8.8)'));
+		o.value('tls://8.8.4.4', _('Google Public DNS (8.8.4.4)'));
+		o.value('tls://9.9.9.9', _('Quad9 Public DNS (9.9.9.9)'));
+		o.value('tls://149.112.112.112', _('Quad9 Public DNS (149.112.112.112)'));
+		o.value('tls://208.67.222.222', _('Cisco Public DNS (208.67.222.222)'));
+		o.value('tls://208.67.220.220', _('Cisco Public DNS (208.67.220.220)'));
+		o.default = 'tls://8.8.8.8';
+		o.depends('custom_ddns_dns', '1');
+
 		o = s.taboption('basic', form.DynamicList, 'remote_dns', _('Remote DNS server'));
 		o.value('tls://1.1.1.1', _('CloudFlare Public DNS (1.1.1.1)'));
 		o.value('tls://1.0.0.1', _('CloudFlare Public DNS (1.0.0.1)'));

@@ -47,6 +47,8 @@ get_config() {
 	config_get apple_optimization $1 apple_optimization 0
 	config_get custom_stream_media_dns $1 custom_stream_media_dns 0
 	config_get stream_media_dns $1 stream_media_dns "tls://8.8.8.8"
+	config_get custom_ddns_dns $1 custom_ddns_dns 0
+	config_get ddns_dns $1 ddns_dns "tls://8.8.8.8"
 	config_get bootstrap_dns $1 bootstrap_dns "119.29.29.29"
 	config_get listen_port_api $1 listen_port_api 52001
 	config_get concurrent $1 concurrent 1
@@ -309,6 +311,33 @@ generate_config() {
 	json_close_array
 	json_close_object
 	json_close_object
+	# plugin: forward_ddns
+	if [ "$custom_ddns_dns" -eq 1 ] && [ -n "$ddns_dns" ]; then
+		json_add_object
+		json_add_string "tag" "forward_ddns"
+		json_add_string "type" "forward"
+		json_add_object "args"
+		json_add_int "concurrent" "$concurrent"
+		json_add_array "upstreams"
+		for addr in $ddns_dns; do
+			enable_http3=0
+			if echo "$addr" | grep -q "^h3://"; then
+				enable_http3=1
+				addr=$(echo $addr | sed 's/h3:\/\//https:\/\//g')
+			fi
+			json_add_object
+			json_add_string "addr" "$addr"
+			json_add_string "bootstrap" "$bootstrap_dns"
+			json_add_boolean "enable_pipeline" "$enable_pipeline"
+			json_add_boolean "insecure_skip_verify" "$insecure_skip_verify"
+			json_add_int "idle_timeout" "$idle_timeout"
+			[ "$enable_http3" -eq 1 ] && json_add_boolean "enable_http3" "1"
+			json_close_object
+		done
+		json_close_array
+		json_close_object
+		json_close_object
+	fi
 	# plugin: forward_remote
 	json_add_object
 	json_add_string "tag" "forward_remote"
@@ -510,7 +539,11 @@ generate_config() {
 	json_add_array "args"
 	json_add_object
 	json_add_string "matches" "qname \$ddnslist"
-	json_add_string "exec" "\$forward_local"
+	if [ "$custom_ddns_dns" -eq 1 ] && [ -n "$ddns_dns" ]; then
+		json_add_string "exec" "\$forward_ddns"
+	else
+		json_add_string "exec" "\$forward_local"
+	fi
 	json_close_object
 	json_close_array
 	json_close_object

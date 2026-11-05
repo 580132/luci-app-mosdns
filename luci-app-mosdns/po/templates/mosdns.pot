@@ -304,6 +304,10 @@ msgstr ""
 msgid "Custom Config"
 msgstr ""
 
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:226
+msgid "Custom DDNS DNS"
+msgstr ""
+
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:58
 msgid ""
 "Custom Hosts rewrite, for example: baidu.com 10.0.0.1 (one rule per line, "
@@ -316,6 +320,10 @@ msgstr ""
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:238
 msgid "Custom Stream Media DNS"
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:231
+msgid "DDNS DNS server"
 msgstr ""
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:47
@@ -995,6 +1003,12 @@ msgstr ""
 msgid "TrafficRoute Public DNS (180.184.2.2)"
 msgstr ""
 
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:227
+msgid ""
+"Use a dedicated DNS server to resolve the domain names in the DDNS Lists "
+"instead of the China/Local DNS"
+msgstr ""
+
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:494
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:17
 msgid "Unable to save contents: %s"
@@ -1052,6 +1066,11 @@ msgstr ""
 msgid ""
 "When using custom rule sources, please use rule types supported by MosDNS "
 "(domain list or AdGuardHome rules)."
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:50
+msgid ""
+"When 'Custom DDNS DNS' is enabled, the 'DDNS DNS server' will be used instead."
 msgstr ""
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:23
