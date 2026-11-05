@@ -9,6 +9,8 @@ jobs:
   build:
     name: Build ${{ matrix.arch }}-${{ matrix.tag }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
