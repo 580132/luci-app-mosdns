@@ -257,8 +257,22 @@ return view.extend({
 		o.depends('configfile', '/var/etc/mosdns.json');
 		o.default = false;
 
-		o = s.taboption('basic', form.DynamicList, 'public_dns', _('Public fallback DNS server'),
-			_('Public DNS servers used only when the corresponding self-hosted DNS is unavailable.'));
+		o = s.taboption('basic', form.DynamicList, 'public_dns_local', _('Public fallback DNS server (China)'),
+			_('Public DNS servers used only when the China self-hosted DNS is unavailable.'));
+		o.value('223.5.5.5', _('Aliyun Public DNS (223.5.5.5)'));
+		o.value('223.6.6.6', _('Aliyun Public DNS (223.6.6.6)'));
+		o.value('119.29.29.29', _('Tencent Public DNS (119.29.29.29)'));
+		o.value('119.28.28.28', _('Tencent Public DNS (119.28.28.28)'));
+		o.value('180.76.76.76', _('Baidu Public DNS (180.76.76.76)'));
+		o.value('114.114.114.114', _('Xinfeng Public DNS (114.114.114.114)'));
+		o.value('114.114.115.115', _('Xinfeng Public DNS (114.114.115.115)'));
+		o.value('https://dns.alidns.com/dns-query', _('Aliyun Public DNS (DNS over HTTPS)'));
+		o.value('https://doh.pub/dns-query', _('Tencent Public DNS (DNS over HTTPS)'));
+		o.default = '223.5.5.5';
+		o.depends('selfhost_dns_mode', '1');
+
+		o = s.taboption('basic', form.DynamicList, 'public_dns_remote', _('Public fallback DNS server (Remote)'),
+			_('Public DNS servers used only when the Remote/Streaming/DDNS self-hosted DNS is unavailable.'));
 		o.value('tls://1.1.1.1', _('CloudFlare Public DNS (1.1.1.1)'));
 		o.value('tls://1.0.0.1', _('CloudFlare Public DNS (1.0.0.1)'));
 		o.value('tls://8.8.8.8', _('Google Public DNS (8.8.8.8)'));
@@ -267,10 +281,6 @@ return view.extend({
 		o.value('tls://149.112.112.112', _('Quad9 Public DNS (149.112.112.112)'));
 		o.value('tls://208.67.222.222', _('Cisco Public DNS (208.67.222.222)'));
 		o.value('tls://208.67.220.220', _('Cisco Public DNS (208.67.220.220)'));
-		o.value('223.5.5.5', _('Aliyun Public DNS (223.5.5.5)'));
-		o.value('119.29.29.29', _('Tencent Public DNS (119.29.29.29)'));
-		o.value('https://dns.alidns.com/dns-query', _('Aliyun Public DNS (DNS over HTTPS)'));
-		o.value('https://doh.pub/dns-query', _('Tencent Public DNS (DNS over HTTPS)'));
 		o.default = 'tls://1.1.1.1';
 		o.depends('selfhost_dns_mode', '1');
 

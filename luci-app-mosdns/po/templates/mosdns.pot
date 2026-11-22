@@ -1154,13 +1154,22 @@ msgid ""
 msgstr ""
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:260
-msgid "Public fallback DNS server"
+msgid "Public fallback DNS server (China)"
 msgstr ""
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:261
 msgid ""
-"Public DNS servers used only when the corresponding self-hosted DNS is "
-"unavailable."
+"Public DNS servers used only when the China self-hosted DNS is unavailable."
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:274
+msgid "Public fallback DNS server (Remote)"
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:275
+msgid ""
+"Public DNS servers used only when the Remote/Streaming/DDNS self-hosted DNS "
+"is unavailable."
 msgstr ""
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:277

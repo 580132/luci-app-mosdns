@@ -50,7 +50,8 @@ get_config() {
 	config_get custom_ddns_dns $1 custom_ddns_dns 0
 	config_get ddns_dns $1 ddns_dns "tls://8.8.8.8"
 	config_get selfhost_dns_mode $1 selfhost_dns_mode 0
-	config_get public_dns $1 public_dns ""
+	config_get public_dns_local $1 public_dns_local ""
+	config_get public_dns_remote $1 public_dns_remote ""
 	config_get public_dns_concurrent $1 public_dns_concurrent 2
 	config_get adaptive_threshold $1 adaptive_threshold 500
 	config_get adaptive_probe_interval $1 adaptive_probe_interval 10
@@ -326,15 +327,44 @@ generate_config() {
 	json_close_array
 	json_close_object
 	json_close_object
-	# plugin: forward_public
+	# plugin: forward_public_local
 	if [ "$selfhost_dns_mode" -eq 1 ]; then
 		json_add_object
-		json_add_string "tag" "forward_public"
+		json_add_string "tag" "forward_public_local"
 		json_add_string "type" "forward"
 		json_add_object "args"
 		json_add_int "concurrent" "$public_dns_concurrent"
 		json_add_array "upstreams"
-		public_dns_list="$public_dns"
+		public_dns_list="$public_dns_local"
+		[ -z "$public_dns_list" ] && public_dns_list="223.5.5.5 119.29.29.29" # fail-safe
+		for addr in $public_dns_list; do
+			enable_http3=0
+			if echo "$addr" | grep -q "^h3://"; then
+				enable_http3=1
+				addr=$(echo $addr | sed 's/h3:\/\//https:\/\//g')
+			fi
+			json_add_object
+			json_add_string "addr" "$addr"
+			json_add_string "bootstrap" "$bootstrap_dns"
+			json_add_boolean "enable_pipeline" "$enable_pipeline"
+			json_add_boolean "insecure_skip_verify" "$insecure_skip_verify"
+			json_add_int "idle_timeout" "$idle_timeout"
+			[ "$enable_http3" -eq 1 ] && json_add_boolean "enable_http3" "1"
+			json_close_object
+		done
+		json_close_array
+		json_close_object
+		json_close_object
+	fi
+	# plugin: forward_public_remote
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		json_add_object
+		json_add_string "tag" "forward_public_remote"
+		json_add_string "type" "forward"
+		json_add_object "args"
+		json_add_int "concurrent" "$public_dns_concurrent"
+		json_add_array "upstreams"
+		public_dns_list="$public_dns_remote"
 		[ -z "$public_dns_list" ] && public_dns_list="tls://1.1.1.1 tls://8.8.8.8" # fail-safe
 		for addr in $public_dns_list; do
 			enable_http3=0
@@ -362,7 +392,7 @@ generate_config() {
 		json_add_string "type" "adaptive_fallback"
 		json_add_object "args"
 		json_add_string "primary" "forward_local"
-		json_add_string "secondary" "forward_public"
+		json_add_string "secondary" "forward_public_local"
 		json_add_int "threshold" "$adaptive_threshold"
 		json_add_int "probe_interval" "$adaptive_probe_interval"
 		json_add_int "probe_timeout" "$adaptive_threshold"
@@ -404,7 +434,7 @@ generate_config() {
 		json_add_string "type" "adaptive_fallback"
 		json_add_object "args"
 		json_add_string "primary" "forward_ddns"
-		json_add_string "secondary" "forward_public"
+		json_add_string "secondary" "forward_public_remote"
 		json_add_int "threshold" "$adaptive_threshold"
 		json_add_int "probe_interval" "$adaptive_probe_interval"
 		json_add_int "probe_timeout" "$adaptive_threshold"
@@ -444,7 +474,7 @@ generate_config() {
 		json_add_string "type" "adaptive_fallback"
 		json_add_object "args"
 		json_add_string "primary" "forward_remote"
-		json_add_string "secondary" "forward_public"
+		json_add_string "secondary" "forward_public_remote"
 		json_add_int "threshold" "$adaptive_threshold"
 		json_add_int "probe_interval" "$adaptive_probe_interval"
 		json_add_int "probe_timeout" "$adaptive_threshold"
@@ -508,7 +538,7 @@ generate_config() {
 		json_add_string "type" "adaptive_fallback"
 		json_add_object "args"
 		json_add_string "primary" "forward_stream_media"
-		json_add_string "secondary" "forward_public"
+		json_add_string "secondary" "forward_public_remote"
 		json_add_int "threshold" "$adaptive_threshold"
 		json_add_int "probe_interval" "$adaptive_probe_interval"
 		json_add_int "probe_timeout" "$adaptive_threshold"
@@ -620,7 +650,7 @@ generate_config() {
 	if [ "$selfhost_dns_mode" -eq 1 ]; then
 		if [ "$dns_leak" -eq 1 ]; then
 			json_add_string "primary" "forward_remote_upstream"
-			json_add_string "secondary" "forward_public"
+			json_add_string "secondary" "forward_public_remote"
 			json_add_boolean "always_standby" 0
 		else
 			json_add_string "primary" "query_is_non_local_ip"

@@ -20,17 +20,21 @@ This fork adds a **Self-hosted DNS Mode** switch under *Basic Setting*. It requi
 When enabled, the China, Remote, Streaming Media and DDNS DNS servers are treated as self-hosted upstreams:
 
 - **Healthy**: only the self-hosted DNS is queried. Public DNS is not queried in parallel.
-- **Unhealthy**: after a 500ms timeout or a connection error, the upstream is marked down and the public DNS list is used directly for subsequent queries.
+- **Unhealthy**: after a timeout or a connection error, the upstream is marked down and the matching public DNS list is used directly for subsequent queries.
 - **Recovery**: a background probe (default every 10s) checks the failed upstream and switches back automatically on the first response.
 
 `SERVFAIL` and `REFUSED` are valid responses: they are returned to the client and never trigger a failover.
+
+China uses `public_dns_local`; Remote, Streaming Media and DDNS use `public_dns_remote`.
 
 UCI options:
 
 ```uci
 option selfhost_dns_mode '1'
-list public_dns 'tls://1.1.1.1'
-list public_dns 'tls://8.8.8.8'
+list public_dns_local '223.5.5.5'
+list public_dns_local '119.29.29.29'
+list public_dns_remote 'tls://1.1.1.1'
+list public_dns_remote 'tls://8.8.8.8'
 option public_dns_concurrent '2'
 option adaptive_threshold '500'
 option adaptive_probe_interval '10'

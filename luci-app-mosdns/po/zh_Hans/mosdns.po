@@ -1196,14 +1196,23 @@ msgstr ""
 "DNS，并在后台探测恢复情况。"
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:260
-msgid "Public fallback DNS server"
-msgstr "公共回退 DNS 服务器"
+msgid "Public fallback DNS server (China)"
+msgstr "公共回退 DNS 服务器（国内）"
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:261
 msgid ""
-"Public DNS servers used only when the corresponding self-hosted DNS is "
-"unavailable."
-msgstr "仅当对应的自建 DNS 不可用时才使用这些公共 DNS。"
+"Public DNS servers used only when the China self-hosted DNS is unavailable."
+msgstr "仅当国内自建 DNS 不可用时才使用这些公共 DNS。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:274
+msgid "Public fallback DNS server (Remote)"
+msgstr "公共回退 DNS 服务器（远程）"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:275
+msgid ""
+"Public DNS servers used only when the Remote/Streaming/DDNS self-hosted DNS "
+"is unavailable."
+msgstr "仅当远程/流媒体/DDNS 自建 DNS 不可用时才使用这些公共 DNS。"
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:277
 msgid "Public DNS concurrent"
