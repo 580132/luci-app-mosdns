@@ -1,0 +1,225 @@
+diff --git a/plugin/enabled_plugins.go b/plugin/enabled_plugins.go
+index 764811f..acbeaee 100644
+--- a/plugin/enabled_plugins.go
++++ b/plugin/enabled_plugins.go
+@@ -59,6 +59,7 @@ import (
+ 	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/redirect"
+ 	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/reverse_lookup"
+ 	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/sequence"
++	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/sequence/adaptive_fallback"
+ 	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/sequence/fallback"
+ 	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/sleep"
+ 	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/ttl"
+diff --git a/plugin/executable/sequence/adaptive_fallback/adaptive_fallback.go b/plugin/executable/sequence/adaptive_fallback/adaptive_fallback.go
+new file mode 100644
+index 0000000..5ffa72b
+--- /dev/null
++++ b/plugin/executable/sequence/adaptive_fallback/adaptive_fallback.go
+@@ -0,0 +1,207 @@
++/*
++ * Copyright (C) 2026, sbwml
++ *
++ * This file is part of mosdns.
++ *
++ * mosdns is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 3 of the License, or
++ * (at your option) any later version.
++ *
++ * mosdns is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
++ */
++
++package adaptive_fallback
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"strings"
++	"sync/atomic"
++	"time"
++
++	"github.com/IrineSistiana/mosdns/v5/coremain"
++	"github.com/IrineSistiana/mosdns/v5/pkg/query_context"
++	"github.com/IrineSistiana/mosdns/v5/plugin/executable/sequence"
++	"github.com/miekg/dns"
++	"go.uber.org/zap"
++)
++
++const PluginType = "adaptive_fallback"
++
++func init() {
++	coremain.RegNewPluginFunc(PluginType, Init, func() any { return new(Args) })
++}
++
++// Args is the configuration of the adaptive_fallback plugin.
++//
++// The plugin uses primary as the preferred upstream and only switches to
++// secondary after a timeout, a connection error or an empty response. Unlike
++// the built-in fallback plugin, the failure state is sticky: once primary is
++// marked down, all following queries are sent to secondary directly, while a
++// background probe periodically checks whether primary has recovered.
++//
++// SERVFAIL and REFUSED are valid DNS responses and never trigger a failover.
++type Args struct {
++	// Primary is the tag of the preferred executable.
++	Primary string `yaml:"primary"`
++	// Secondary is the tag of the fallback executable.
++	Secondary string `yaml:"secondary"`
++
++	// Threshold is the timeout of a primary query in milliseconds. Default: 500.
++	Threshold int `yaml:"threshold"`
++	// ProbeInterval is the interval of the background health probe in seconds. Default: 10.
++	ProbeInterval int `yaml:"probe_interval"`
++	// ProbeTimeout is the timeout of a probe query in milliseconds. Default: threshold.
++	ProbeTimeout int `yaml:"probe_timeout"`
++	// ProbeDomain is the domain used by the health probe. Default: www.google.com.
++	ProbeDomain string `yaml:"probe_domain"`
++	// ProbeQType is the query type used by the health probe. Default: 1 (A).
++	ProbeQType int `yaml:"probe_qtype"`
++}
++
++type adaptiveFallback struct {
++	logger        *zap.Logger
++	primary       sequence.Executable
++	secondary     sequence.Executable
++	threshold     time.Duration
++	probeInterval time.Duration
++	probeTimeout  time.Duration
++	probeDomain   string
++	probeQType    uint16
++	down          atomic.Bool
++}
++
++func Init(bp *coremain.BP, args any) (any, error) {
++	return newAdaptiveFallback(bp, args.(*Args))
++}
++
++func newAdaptiveFallback(bp *coremain.BP, args *Args) (*adaptiveFallback, error) {
++	if len(args.Primary) == 0 || len(args.Secondary) == 0 {
++		return nil, errors.New("args missing primary or secondary")
++	}
++
++	pe := sequence.ToExecutable(bp.M().GetPlugin(args.Primary))
++	if pe == nil {
++		return nil, fmt.Errorf("can not find primary executable %s", args.Primary)
++	}
++	se := sequence.ToExecutable(bp.M().GetPlugin(args.Secondary))
++	if se == nil {
++		return nil, fmt.Errorf("can not find secondary executable %s", args.Secondary)
++	}
++
++	threshold := time.Duration(args.Threshold) * time.Millisecond
++	if threshold <= 0 {
++		threshold = 500 * time.Millisecond
++	}
++	probeInterval := time.Duration(args.ProbeInterval) * time.Second
++	if probeInterval <= 0 {
++		probeInterval = 10 * time.Second
++	}
++	probeTimeout := time.Duration(args.ProbeTimeout) * time.Millisecond
++	if probeTimeout <= 0 {
++		probeTimeout = threshold
++	}
++	probeDomain := args.ProbeDomain
++	if len(probeDomain) == 0 {
++		probeDomain = "www.google.com."
++	}
++	if !strings.HasSuffix(probeDomain, ".") {
++		probeDomain += "."
++	}
++	probeQType := uint16(args.ProbeQType)
++	if probeQType == 0 {
++		probeQType = dns.TypeA
++	}
++
++	f := &adaptiveFallback{
++		logger:        bp.L(),
++		primary:       pe,
++		secondary:     se,
++		threshold:     threshold,
++		probeInterval: probeInterval,
++		probeTimeout:  probeTimeout,
++		probeDomain:   probeDomain,
++		probeQType:    probeQType,
++	}
++	go f.probeLoop()
++	return f, nil
++}
++
++func (f *adaptiveFallback) Exec(ctx context.Context, qCtx *query_context.Context) error {
++	if f.down.Load() {
++		return f.execSecondary(ctx, qCtx)
++	}
++
++	pCtx, cancel := context.WithTimeout(ctx, f.threshold)
++	defer cancel()
++
++	pq := qCtx.Copy()
++	err := f.primary.Exec(pCtx, pq)
++	if err == nil {
++		if r := pq.R(); r != nil {
++			qCtx.SetResponse(r)
++			return nil
++		}
++	}
++
++	// The client canceled the query. Do not change the health state.
++	if ctx.Err() != nil {
++		return ctx.Err()
++	}
++
++	if f.down.CompareAndSwap(false, true) {
++		f.logger.Warn("primary is down, switching to secondary", zap.Error(err))
++	}
++	return f.execSecondary(ctx, qCtx)
++}
++
++func (f *adaptiveFallback) execSecondary(ctx context.Context, qCtx *query_context.Context) error {
++	sq := qCtx.Copy()
++	if err := f.secondary.Exec(ctx, sq); err != nil {
++		return err
++	}
++	r := sq.R()
++	if r == nil {
++		return errors.New("secondary returned no response")
++	}
++	qCtx.SetResponse(r)
++	return nil
++}
++
++func (f *adaptiveFallback) probeLoop() {
++	ticker := time.NewTicker(f.probeInterval)
++	defer ticker.Stop()
++
++	for range ticker.C {
++		if !f.down.Load() {
++			continue
++		}
++		if f.probe() {
++			if f.down.CompareAndSwap(true, false) {
++				f.logger.Info("primary recovered, switching back")
++			}
++		}
++	}
++}
++
++func (f *adaptiveFallback) probe() bool {
++	q := new(dns.Msg)
++	q.SetQuestion(f.probeDomain, f.probeQType)
++	qCtx := query_context.NewContext(q)
++
++	ctx, cancel := context.WithTimeout(context.Background(), f.probeTimeout)
++	defer cancel()
++
++	if err := f.primary.Exec(ctx, qCtx); err != nil {
++		return false
++	}
++	return qCtx.R() != nil
++}

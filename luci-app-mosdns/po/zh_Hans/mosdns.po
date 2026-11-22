@@ -1181,3 +1181,52 @@ msgstr "● 实时刷新"
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/statistics.js:237
 msgid "❚❚ Paused (Page %d)"
 msgstr "❚❚ 暂停 (第 %d 页)"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:255
+msgid "Self-hosted DNS Mode"
+msgstr "自建 DNS 模式"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:256
+msgid ""
+"Use the configured China/Remote/Streaming/DDNS DNS as self-hosted upstreams. "
+"When an upstream times out, switch to the public DNS automatically and probe "
+"it in the background."
+msgstr ""
+"将已配置的国内/国外/流媒体/DDNS DNS 作为自建上游。上游超时后自动切换到公共 "
+"DNS，并在后台探测恢复情况。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:260
+msgid "Public fallback DNS server"
+msgstr "公共回退 DNS 服务器"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:261
+msgid ""
+"Public DNS servers used only when the corresponding self-hosted DNS is "
+"unavailable."
+msgstr "仅当对应的自建 DNS 不可用时才使用这些公共 DNS。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:277
+msgid "Public DNS concurrent"
+msgstr "公共 DNS 并发数"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:278
+msgid "Number of public DNS servers queried concurrently on failover."
+msgstr "故障切换时并发查询的公共 DNS 数量。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:283
+msgid "Failover threshold (ms)"
+msgstr "熔断阈值（毫秒）"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:284
+msgid "A self-hosted DNS is marked down when it does not respond within this time."
+msgstr "自建 DNS 在此时间内无响应即视为故障。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:289
+msgid "Recovery probe interval (s)"
+msgstr "恢复探测间隔（秒）"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:290
+msgid ""
+"Interval used to probe a failed self-hosted DNS. It switches back "
+"automatically after recovery."
+msgstr "探测故障自建 DNS 的间隔，恢复后自动切回。"

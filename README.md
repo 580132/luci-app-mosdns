@@ -13,6 +13,29 @@ option custom_ddns_dns '1'
 list ddns_dns 'tls://8.8.8.8'
 ```
 
+## Self-hosted DNS mode
+
+This fork adds a **Self-hosted DNS Mode** switch under *Basic Setting*. It requires the `mosdns` package built from this repository (5.3.4-r16 or later), which contains the `adaptive_fallback` plugin.
+
+When enabled, the China, Remote, Streaming Media and DDNS DNS servers are treated as self-hosted upstreams:
+
+- **Healthy**: only the self-hosted DNS is queried. Public DNS is not queried in parallel.
+- **Unhealthy**: after a 500ms timeout or a connection error, the upstream is marked down and the public DNS list is used directly for subsequent queries.
+- **Recovery**: a background probe (default every 10s) checks the failed upstream and switches back automatically on the first response.
+
+`SERVFAIL` and `REFUSED` are valid responses: they are returned to the client and never trigger a failover.
+
+UCI options:
+
+```uci
+option selfhost_dns_mode '1'
+list public_dns 'tls://1.1.1.1'
+list public_dns 'tls://8.8.8.8'
+option public_dns_concurrent '2'
+option adaptive_threshold '500'
+option adaptive_probe_interval '10'
+```
+
 ## Hosts / rule file auto-reload
 
 The `mosdns` package in this repository applies the auto-reload patch (patch 206): a 3-second file watcher is attached to `hosts`, `redirect`, `domain_set`, `ip_set`, `adblock_set` and `arbitrary` rule files.

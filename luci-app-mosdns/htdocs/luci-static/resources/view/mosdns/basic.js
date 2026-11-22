@@ -252,6 +252,46 @@ return view.extend({
 		o.default = 'tls://8.8.8.8';
 		o.depends('configfile', '/var/etc/mosdns.json');
 
+		o = s.taboption('basic', form.Flag, 'selfhost_dns_mode', _('Self-hosted DNS Mode'),
+			_('Use the configured China/Remote/Streaming/DDNS DNS as self-hosted upstreams. When an upstream times out, switch to the public DNS automatically and probe it in the background.'));
+		o.depends('configfile', '/var/etc/mosdns.json');
+		o.default = false;
+
+		o = s.taboption('basic', form.DynamicList, 'public_dns', _('Public fallback DNS server'),
+			_('Public DNS servers used only when the corresponding self-hosted DNS is unavailable.'));
+		o.value('tls://1.1.1.1', _('CloudFlare Public DNS (1.1.1.1)'));
+		o.value('tls://1.0.0.1', _('CloudFlare Public DNS (1.0.0.1)'));
+		o.value('tls://8.8.8.8', _('Google Public DNS (8.8.8.8)'));
+		o.value('tls://8.8.4.4', _('Google Public DNS (8.8.4.4)'));
+		o.value('tls://9.9.9.9', _('Quad9 Public DNS (9.9.9.9)'));
+		o.value('tls://149.112.112.112', _('Quad9 Public DNS (149.112.112.112)'));
+		o.value('tls://208.67.222.222', _('Cisco Public DNS (208.67.222.222)'));
+		o.value('tls://208.67.220.220', _('Cisco Public DNS (208.67.220.220)'));
+		o.value('223.5.5.5', _('Aliyun Public DNS (223.5.5.5)'));
+		o.value('119.29.29.29', _('Tencent Public DNS (119.29.29.29)'));
+		o.value('https://dns.alidns.com/dns-query', _('Aliyun Public DNS (DNS over HTTPS)'));
+		o.value('https://doh.pub/dns-query', _('Tencent Public DNS (DNS over HTTPS)'));
+		o.default = 'tls://1.1.1.1';
+		o.depends('selfhost_dns_mode', '1');
+
+		o = s.taboption('basic', form.Value, 'public_dns_concurrent', _('Public DNS concurrent'),
+			_('Number of public DNS servers queried concurrently on failover.'));
+		o.datatype = 'and(uinteger,min(1),max(3))';
+		o.default = '2';
+		o.depends('selfhost_dns_mode', '1');
+
+		o = s.taboption('basic', form.Value, 'adaptive_threshold', _('Failover threshold (ms)'),
+			_('A self-hosted DNS is marked down when it does not respond within this time.'));
+		o.datatype = 'and(uinteger,min(50),max(10000))';
+		o.default = '500';
+		o.depends('selfhost_dns_mode', '1');
+
+		o = s.taboption('basic', form.Value, 'adaptive_probe_interval', _('Recovery probe interval (s)'),
+			_('Interval used to probe a failed self-hosted DNS. It switches back automatically after recovery.'));
+		o.datatype = 'and(uinteger,min(1),max(3600))';
+		o.default = '10';
+		o.depends('selfhost_dns_mode', '1');
+
 		o = s.taboption('basic', form.Flag, 'custom_stream_media_dns', _('Custom Stream Media DNS'),
 			_('Netflix, Disney+, Hulu and streaming media rules list will use this DNS'));
 		o.depends('configfile', '/var/etc/mosdns.json');

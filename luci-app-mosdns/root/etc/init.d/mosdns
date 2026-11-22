@@ -49,6 +49,21 @@ get_config() {
 	config_get stream_media_dns $1 stream_media_dns "tls://8.8.8.8"
 	config_get custom_ddns_dns $1 custom_ddns_dns 0
 	config_get ddns_dns $1 ddns_dns "tls://8.8.8.8"
+	config_get selfhost_dns_mode $1 selfhost_dns_mode 0
+	config_get public_dns $1 public_dns ""
+	config_get public_dns_concurrent $1 public_dns_concurrent 2
+	config_get adaptive_threshold $1 adaptive_threshold 500
+	config_get adaptive_probe_interval $1 adaptive_probe_interval 10
+	case "$public_dns_concurrent" in
+		1|2|3) ;;
+		*) public_dns_concurrent=2 ;;
+	esac
+	case "$adaptive_threshold" in
+		''|*[!0-9]*) adaptive_threshold=500 ;;
+	esac
+	case "$adaptive_probe_interval" in
+		''|*[!0-9]*) adaptive_probe_interval=10 ;;
+	esac
 	config_get bootstrap_dns $1 bootstrap_dns "119.29.29.29"
 	config_get listen_port_api $1 listen_port_api 52001
 	config_get concurrent $1 concurrent 1
@@ -311,6 +326,50 @@ generate_config() {
 	json_close_array
 	json_close_object
 	json_close_object
+	# plugin: forward_public
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		json_add_object
+		json_add_string "tag" "forward_public"
+		json_add_string "type" "forward"
+		json_add_object "args"
+		json_add_int "concurrent" "$public_dns_concurrent"
+		json_add_array "upstreams"
+		public_dns_list="$public_dns"
+		[ -z "$public_dns_list" ] && public_dns_list="tls://1.1.1.1 tls://8.8.8.8" # fail-safe
+		for addr in $public_dns_list; do
+			enable_http3=0
+			if echo "$addr" | grep -q "^h3://"; then
+				enable_http3=1
+				addr=$(echo $addr | sed 's/h3:\/\//https:\/\//g')
+			fi
+			json_add_object
+			json_add_string "addr" "$addr"
+			json_add_string "bootstrap" "$bootstrap_dns"
+			json_add_boolean "enable_pipeline" "$enable_pipeline"
+			json_add_boolean "insecure_skip_verify" "$insecure_skip_verify"
+			json_add_int "idle_timeout" "$idle_timeout"
+			[ "$enable_http3" -eq 1 ] && json_add_boolean "enable_http3" "1"
+			json_close_object
+		done
+		json_close_array
+		json_close_object
+		json_close_object
+	fi
+	# plugin: smart_local
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		json_add_object
+		json_add_string "tag" "smart_local"
+		json_add_string "type" "adaptive_fallback"
+		json_add_object "args"
+		json_add_string "primary" "forward_local"
+		json_add_string "secondary" "forward_public"
+		json_add_int "threshold" "$adaptive_threshold"
+		json_add_int "probe_interval" "$adaptive_probe_interval"
+		json_add_int "probe_timeout" "$adaptive_threshold"
+		json_add_string "probe_domain" "www.baidu.com."
+		json_close_object
+		json_close_object
+	fi
 	# plugin: forward_ddns
 	if [ "$custom_ddns_dns" -eq 1 ] && [ -n "$ddns_dns" ]; then
 		json_add_object
@@ -335,6 +394,21 @@ generate_config() {
 			json_close_object
 		done
 		json_close_array
+		json_close_object
+		json_close_object
+	fi
+	# plugin: smart_ddns
+	if [ "$selfhost_dns_mode" -eq 1 ] && [ "$custom_ddns_dns" -eq 1 ] && [ -n "$ddns_dns" ]; then
+		json_add_object
+		json_add_string "tag" "smart_ddns"
+		json_add_string "type" "adaptive_fallback"
+		json_add_object "args"
+		json_add_string "primary" "forward_ddns"
+		json_add_string "secondary" "forward_public"
+		json_add_int "threshold" "$adaptive_threshold"
+		json_add_int "probe_interval" "$adaptive_probe_interval"
+		json_add_int "probe_timeout" "$adaptive_threshold"
+		json_add_string "probe_domain" "www.google.com."
 		json_close_object
 		json_close_object
 	fi
@@ -363,6 +437,21 @@ generate_config() {
 	json_close_array
 	json_close_object
 	json_close_object
+	# plugin: smart_remote
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		json_add_object
+		json_add_string "tag" "smart_remote"
+		json_add_string "type" "adaptive_fallback"
+		json_add_object "args"
+		json_add_string "primary" "forward_remote"
+		json_add_string "secondary" "forward_public"
+		json_add_int "threshold" "$adaptive_threshold"
+		json_add_int "probe_interval" "$adaptive_probe_interval"
+		json_add_int "probe_timeout" "$adaptive_threshold"
+		json_add_string "probe_domain" "www.google.com."
+		json_close_object
+		json_close_object
+	fi
 	# plugin: forward_remote_upstream
 	json_add_object
 	json_add_string "tag" "forward_remote_upstream"
@@ -379,7 +468,11 @@ generate_config() {
 		json_close_object
 	}
 	json_add_object
-	json_add_string "exec" "\$forward_remote"
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		json_add_string "exec" "\$smart_remote"
+	else
+		json_add_string "exec" "\$forward_remote"
+	fi
 	json_close_object
 	json_close_array
 	json_close_object
@@ -408,6 +501,21 @@ generate_config() {
 	json_close_array
 	json_close_object
 	json_close_object
+	# plugin: smart_stream
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		json_add_object
+		json_add_string "tag" "smart_stream"
+		json_add_string "type" "adaptive_fallback"
+		json_add_object "args"
+		json_add_string "primary" "forward_stream_media"
+		json_add_string "secondary" "forward_public"
+		json_add_int "threshold" "$adaptive_threshold"
+		json_add_int "probe_interval" "$adaptive_probe_interval"
+		json_add_int "probe_timeout" "$adaptive_threshold"
+		json_add_string "probe_domain" "www.google.com."
+		json_close_object
+		json_close_object
+	fi
 	# plugin: forward_stream_media_upstream
 	json_add_object
 	json_add_string "tag" "forward_stream_media_upstream"
@@ -424,7 +532,11 @@ generate_config() {
 		json_close_object
 	}
 	json_add_object
-	json_add_string "exec" "\$forward_stream_media"
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		json_add_string "exec" "\$smart_stream"
+	else
+		json_add_string "exec" "\$forward_stream_media"
+	fi
 	json_close_object
 	json_close_array
 	json_close_object
@@ -488,7 +600,11 @@ generate_config() {
 	json_add_string "type" "sequence"
 	json_add_array "args"
 	json_add_object
-	json_add_string "exec" "\$forward_local"
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		json_add_string "exec" "\$smart_local"
+	else
+		json_add_string "exec" "\$forward_local"
+	fi
 	json_close_object
 	json_add_object
 	json_add_string "matches" "!resp_ip \$geoip_cn"
@@ -501,10 +617,23 @@ generate_config() {
 	json_add_string "tag" "fallback"
 	json_add_string "type" "fallback"
 	json_add_object "args"
-	[ "$dns_leak" -eq 1 ] && json_add_string "primary" "forward_remote_upstream" || json_add_string "primary" "query_is_non_local_ip"
-	json_add_string "secondary" "forward_remote_upstream"
-	json_add_int "threshold" 500
-	json_add_boolean "always_standby" 1
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		if [ "$dns_leak" -eq 1 ]; then
+			json_add_string "primary" "forward_remote_upstream"
+			json_add_string "secondary" "forward_public"
+			json_add_boolean "always_standby" 0
+		else
+			json_add_string "primary" "query_is_non_local_ip"
+			json_add_string "secondary" "forward_remote_upstream"
+			json_add_boolean "always_standby" 1
+		fi
+		json_add_int "threshold" "$adaptive_threshold"
+	else
+		[ "$dns_leak" -eq 1 ] && json_add_string "primary" "forward_remote_upstream" || json_add_string "primary" "query_is_non_local_ip"
+		json_add_string "secondary" "forward_remote_upstream"
+		json_add_int "threshold" 500
+		json_add_boolean "always_standby" 1
+	fi
 	json_close_object
 	json_close_object
 	# plugin: apple_domain_fallback
@@ -540,9 +669,17 @@ generate_config() {
 	json_add_object
 	json_add_string "matches" "qname \$ddnslist"
 	if [ "$custom_ddns_dns" -eq 1 ] && [ -n "$ddns_dns" ]; then
-		json_add_string "exec" "\$forward_ddns"
+		if [ "$selfhost_dns_mode" -eq 1 ]; then
+			json_add_string "exec" "\$smart_ddns"
+		else
+			json_add_string "exec" "\$forward_ddns"
+		fi
 	else
-		json_add_string "exec" "\$forward_local"
+		if [ "$selfhost_dns_mode" -eq 1 ]; then
+			json_add_string "exec" "\$smart_local"
+		else
+			json_add_string "exec" "\$forward_local"
+		fi
 	fi
 	json_close_object
 	json_close_array
@@ -559,7 +696,11 @@ generate_config() {
 	}
 	json_add_object
 	json_add_string "matches" "qname \$geosite_cn"
-	json_add_string "exec" "\$forward_local"
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		json_add_string "exec" "\$smart_local"
+	else
+		json_add_string "exec" "\$forward_local"
+	fi
 	json_close_object
 	json_close_array
 	json_close_object
@@ -586,7 +727,11 @@ generate_config() {
 	}
 	json_add_object
 	json_add_string "matches" "qname \$whitelist"
-	json_add_string "exec" "\$forward_local"
+	if [ "$selfhost_dns_mode" -eq 1 ]; then
+		json_add_string "exec" "\$smart_local"
+	else
+		json_add_string "exec" "\$forward_local"
+	fi
 	json_close_object
 	json_close_array
 	json_close_object
