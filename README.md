@@ -13,6 +13,17 @@ option custom_ddns_dns '1'
 list ddns_dns 'tls://8.8.8.8'
 ```
 
+## Hosts / rule file auto-reload
+
+The `mosdns` package in this repository applies the auto-reload patch (patch 206): a 3-second file watcher is attached to `hosts`, `redirect`, `domain_set`, `ip_set`, `adblock_set` and `arbitrary` rule files.
+
+Changes to `/etc/mosdns/rule/hosts.txt` and the other rule files take effect automatically within about 3 seconds, without restarting MosDNS. The reload is logged as:
+
+```text
+INFO hosts reloaded files {"files": ["/etc/mosdns/rule/hosts.txt"]}
+```
+
+> Note: this requires installing the `mosdns` package built from this repository. Some feed builds of `mosdns` omit this patch and only reload the service on restart.
 
 ## DNS protocol standard
 
