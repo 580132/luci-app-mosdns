@@ -2,14 +2,14 @@ diff --git a/plugin/enabled_plugins.go b/plugin/enabled_plugins.go
 index 764811f..acbeaee 100644
 --- a/plugin/enabled_plugins.go
 +++ b/plugin/enabled_plugins.go
-@@ -59,6 +59,7 @@ import (
+@@ -60,6 +60,7 @@ import (
  	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/redirect"
  	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/reverse_lookup"
  	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/sequence"
 +	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/sequence/adaptive_fallback"
  	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/sequence/fallback"
  	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/sleep"
- 	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/ttl"
+ 	_ "github.com/IrineSistiana/mosdns/v5/plugin/executable/stats_api"
 diff --git a/plugin/executable/sequence/adaptive_fallback/adaptive_fallback.go b/plugin/executable/sequence/adaptive_fallback/adaptive_fallback.go
 new file mode 100644
 index 0000000..5ffa72b
