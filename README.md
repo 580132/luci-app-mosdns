@@ -25,6 +25,16 @@ INFO hosts reloaded files {"files": ["/etc/mosdns/rule/hosts.txt"]}
 
 > Note: this requires installing the `mosdns` package built from this repository. Some feed builds of `mosdns` omit this patch and only reload the service on restart.
 
+## Rule list validation
+
+The *Rules* editor validates every entry before saving and refuses to write an invalid file, reporting the line number and reason:
+
+- Domain lists: `domain:`, `full:`, `keyword:`, `regexp:` or plain hostnames.
+- Hosts: `<domain> <IP>` with optional additional IPs; every address must be valid IPv4/IPv6.
+- Redirect: `<domain> <target-domain>`.
+
+Existing rule files are also checked when the page is opened, so a bad entry is reported before it can prevent MosDNS from starting.
+
 ## DNS protocol standard
 
 **General DNS (UDP):** `119.29.29.29` **&** `udp://119.29.29.29:53`

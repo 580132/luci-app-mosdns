@@ -637,6 +637,14 @@ msgstr ""
 msgid "Intercept"
 msgstr ""
 
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:100
+msgid "Invalid rule format in %s: %s"
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:252
+msgid "Invalid rule format, the file was not saved."
+msgstr ""
+
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:347
 msgid ""
 "Interval for the background thread to scan the cache for prefetching (in "
@@ -654,6 +662,34 @@ msgstr ""
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:323
 msgid ""
 "Lazy cache survival time (in second). To disable Lazy Cache, please set to 0."
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:143
+msgid "Line %s: empty keyword pattern."
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:140
+msgid "Line %s: empty regexp pattern."
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:166
+msgid "Line %s: expected \"<domain> <IP>\"."
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:176
+msgid "Line %s: expected \"<domain> <target-domain>\"."
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:172
+msgid "Line %s: invalid IP address \"%s\"."
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:134
+msgid "Line %s: invalid domain \"%s\"."
+msgstr ""
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:182
+msgid "Line %s: invalid redirect target \"%s\"."
 msgstr ""
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:157

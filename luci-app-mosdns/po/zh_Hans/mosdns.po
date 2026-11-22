@@ -660,6 +660,14 @@ msgstr "信息"
 msgid "Intercept"
 msgstr "拦截"
 
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:100
+msgid "Invalid rule format in %s: %s"
+msgstr "%s 的规则格式错误：%s"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:252
+msgid "Invalid rule format, the file was not saved."
+msgstr "规则格式错误，文件未保存。"
+
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:347
 msgid ""
 "Interval for the background thread to scan the cache for prefetching (in "
@@ -678,6 +686,34 @@ msgstr "乐观缓存 TTL"
 msgid ""
 "Lazy cache survival time (in second). To disable Lazy Cache, please set to 0."
 msgstr "乐观缓存生存时间（单位：秒），要禁用乐观缓存，请设置为 0"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:143
+msgid "Line %s: empty keyword pattern."
+msgstr "第 %s 行：keyword 规则为空。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:140
+msgid "Line %s: empty regexp pattern."
+msgstr "第 %s 行：regexp 规则为空。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:166
+msgid "Line %s: expected \"<domain> <IP>\"."
+msgstr "第 %s 行：应为 \"<域名> <IP>\"。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:176
+msgid "Line %s: expected \"<domain> <target-domain>\"."
+msgstr "第 %s 行：应为 \"<域名> <目标域名>\"。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:172
+msgid "Line %s: invalid IP address \"%s\"."
+msgstr "第 %s 行：无效的 IP 地址 \"%s\"。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:134
+msgid "Line %s: invalid domain \"%s\"."
+msgstr "第 %s 行：无效的域名 \"%s\"。"
+
+#: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/rules.js:182
+msgid "Line %s: invalid redirect target \"%s\"."
+msgstr "第 %s 行：无效的跳转目标 \"%s\"。"
 
 #: luci-app-mosdns/htdocs/luci-static/resources/view/mosdns/basic.js:157
 msgid "Listen Address"
