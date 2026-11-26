@@ -1,0 +1,20 @@
+diff --git a/plugin/executable/sequence/adaptive_fallback/adaptive_fallback.go b/plugin/executable/sequence/adaptive_fallback/adaptive_fallback.go
+index 5ffa72b..fe359d7 100644
+--- a/plugin/executable/sequence/adaptive_fallback/adaptive_fallback.go
++++ b/plugin/executable/sequence/adaptive_fallback/adaptive_fallback.go
+@@ -148,6 +148,7 @@ func (f *adaptiveFallback) Exec(ctx context.Context, qCtx *query_context.Context
+ 	if err == nil {
+ 		if r := pq.R(); r != nil {
+ 			qCtx.SetResponse(r)
++			qCtx.CopyMetadataFrom(pq)
+ 			return nil
+ 		}
+ 	}
+@@ -173,6 +174,7 @@ func (f *adaptiveFallback) execSecondary(ctx context.Context, qCtx *query_contex
+ 		return errors.New("secondary returned no response")
+ 	}
+ 	qCtx.SetResponse(r)
++	qCtx.CopyMetadataFrom(sq)
+ 	return nil
+ }
+ 
